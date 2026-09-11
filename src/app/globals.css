@@ -1,0 +1,194 @@
+/* globals.css — CSS único do projeto. Sem framework, sem biblioteca de UI.
+   Identidade visual inspirada na Shopify Dev Docs: fundo escuro, tipografia
+   sans, acento verde-menta e cartões com cantos arredondados. A prioridade
+   continua sendo ler tabela densa sem erro, então o contraste em cima do
+   fundo escuro segue alto e as fontes tabulares nos números permanecem. */
+
+:root {
+  --tinta: #edf2f0;
+  --tinta-fraca: #93a29c;
+  --papel: #0b1211;
+  --papel-alt: #131d1b;
+  --linha: rgba(255, 255, 255, 0.1);
+  --realce: #18211f;
+  --azul: #2ecfa3;
+  --azul-fundo: rgba(46, 207, 163, 0.14);
+  --roxo: #b592f6;
+  --alerta: #ff9466;
+  --alerta-fundo: rgba(255, 148, 102, 0.14);
+  --ok: #34d399;
+  --ok-fundo: rgba(52, 211, 153, 0.14);
+  --raio: 10px;
+  --largura: 74rem;
+}
+
+* { box-sizing: border-box; }
+
+html, body {
+  margin: 0;
+  padding: 0;
+  background: var(--papel);
+  color: var(--tinta);
+  font-family: var(--fonte-sans, "Inter"), -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
+  font-size: 16px;
+  line-height: 1.55;
+}
+
+/* Números e códigos pedem tabular: SKU e valor precisam alinhar coluna a coluna. */
+code, .mono, td.num, th.num, input {
+  font-family: ui-monospace, "SF Mono", Menlo, Consolas, monospace;
+  font-variant-numeric: tabular-nums;
+}
+
+a { color: var(--azul); text-decoration: none; }
+a:hover { text-decoration: underline; }
+a:focus-visible, button:focus-visible, input:focus-visible {
+  outline: 2px solid var(--azul);
+  outline-offset: 2px;
+}
+
+.envelope {
+  max-width: var(--largura);
+  margin: 0 auto;
+  padding: 2rem 1.25rem 5rem;
+}
+
+.topo {
+  border-bottom: 1px solid var(--linha);
+  margin: -2rem -1.25rem 2rem;
+  padding: 1.1rem 1.25rem;
+  display: flex;
+  flex-wrap: wrap;
+  gap: 1rem;
+  align-items: center;
+  justify-content: space-between;
+  background: var(--papel-alt);
+}
+.marca-app { display: flex; align-items: center; gap: 0.6rem; }
+.marca-app-icone {
+  width: 1.35rem;
+  height: 1.35rem;
+  border-radius: 6px;
+  background: linear-gradient(135deg, var(--azul), var(--roxo));
+  flex-shrink: 0;
+}
+.topo h1 { font-size: 1.15rem; margin: 0; font-weight: 600; letter-spacing: -0.01em; }
+.topo nav { display: flex; gap: 0.25rem; font-size: 0.9rem; }
+.topo nav a {
+  color: var(--tinta-fraca);
+  padding: 0.4rem 0.7rem;
+  border-radius: 999px;
+}
+.topo nav a:hover { color: var(--tinta); background: var(--realce); text-decoration: none; }
+
+h2 { font-size: 1.2rem; font-weight: 600; margin: 2rem 0 0.75rem; letter-spacing: -0.01em; }
+h3 { font-size: 1rem; font-weight: 600; margin: 1.5rem 0 0.5rem; }
+p { max-width: 68ch; }
+.fraco { color: var(--tinta-fraca); font-size: 0.9rem; }
+
+table { width: 100%; border-collapse: collapse; font-size: 0.9rem; }
+th, td { text-align: left; padding: 0.55rem 0.6rem; border-bottom: 1px solid var(--linha); vertical-align: top; }
+th { font-weight: 600; background: var(--papel-alt); white-space: nowrap; }
+td.num, th.num { text-align: right; }
+tbody tr:hover { background: var(--realce); }
+
+.marca {
+  display: inline-block;
+  font-size: 0.78rem;
+  padding: 0.15rem 0.6rem;
+  border: 1px solid var(--linha);
+  border-radius: 999px;
+  background: var(--papel-alt);
+  color: var(--tinta-fraca);
+  white-space: nowrap;
+}
+.marca-atacado { border-color: var(--azul); color: var(--azul); background: var(--azul-fundo); }
+.marca-franquia { border-color: var(--roxo); color: var(--roxo); background: rgba(181, 146, 246, 0.14); }
+.marca-erro { border-color: var(--alerta); color: var(--alerta); background: var(--alerta-fundo); }
+.marca-ok { border-color: var(--ok); color: var(--ok); background: var(--ok-fundo); }
+
+.aviso {
+  border: 1px solid var(--alerta);
+  border-left-width: 3px;
+  background: var(--alerta-fundo);
+  border-radius: var(--raio);
+  padding: 0.75rem 1rem;
+  margin: 1rem 0;
+}
+.aviso-ok { border-color: var(--ok); background: var(--ok-fundo); }
+.aviso ul { margin: 0.5rem 0 0; padding-left: 1.1rem; }
+
+.cartao { border: 1px solid var(--linha); background: var(--papel-alt); border-radius: var(--raio); padding: 1rem 1.25rem; margin-bottom: 1rem; }
+
+.campos { display: grid; grid-template-columns: repeat(auto-fit, minmax(13rem, 1fr)); gap: 0.75rem 1rem; }
+label { display: block; font-size: 0.82rem; color: var(--tinta-fraca); margin-bottom: 0.2rem; }
+input {
+  width: 100%;
+  padding: 0.45rem 0.55rem;
+  border: 1px solid var(--linha);
+  border-radius: 6px;
+  background: var(--papel);
+  font-size: 0.9rem;
+  color: var(--tinta);
+}
+
+button {
+  font: inherit;
+  font-size: 0.95rem;
+  padding: 0.55rem 1.1rem;
+  border: 1px solid var(--azul);
+  background: var(--azul);
+  color: #052620;
+  font-weight: 600;
+  border-radius: var(--raio);
+  cursor: pointer;
+}
+button:disabled { background: var(--papel-alt); border-color: var(--linha); color: var(--tinta-fraca); cursor: not-allowed; font-weight: 500; }
+button.secundario { background: transparent; border-color: var(--linha); color: var(--tinta); font-weight: 500; }
+button.secundario:hover:not(:disabled) { background: var(--realce); border-color: var(--tinta-fraca); }
+button.botao-emitido:disabled { background: var(--ok-fundo); border-color: var(--ok); color: var(--ok); }
+button.botao-erro { background: var(--alerta); border-color: var(--alerta); color: #2a0f02; }
+
+.botao-pdf {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.3rem;
+  font-size: 0.78rem;
+  padding: 0.2rem 0.55rem;
+  border: 1px solid var(--linha);
+  border-radius: 999px;
+  background: var(--papel-alt);
+  color: var(--tinta);
+  text-decoration: none;
+  white-space: nowrap;
+}
+.botao-pdf:hover { background: var(--realce); text-decoration: none; }
+
+.confirmacao {
+  border: 1px solid var(--alerta);
+  background: var(--alerta-fundo);
+  border-radius: var(--raio);
+  padding: 0.9rem 1rem;
+  margin: 1.5rem 0 1rem;
+}
+.confirmacao label { display: flex; gap: 0.6rem; align-items: flex-start; font-size: 0.95rem; color: var(--tinta); margin: 0; }
+.confirmacao input[type="checkbox"] { width: auto; margin-top: 0.25rem; }
+
+.filtros { display: flex; gap: 1rem; align-items: center; margin: 1rem 0; font-size: 0.9rem; flex-wrap: wrap; }
+.filtros label { display: flex; gap: 0.35rem; align-items: center; margin: 0; font-size: 0.9rem; color: var(--tinta); }
+.filtros input[type="checkbox"] { width: auto; }
+
+.paginacao { display: flex; gap: 0.75rem; align-items: center; margin-top: 1rem; font-size: 0.9rem; }
+
+.vazio { border: 1px dashed var(--linha); border-radius: var(--raio); padding: 2rem; text-align: center; color: var(--tinta-fraca); }
+
+@media (max-width: 40rem) {
+  .envelope { padding: 1.25rem 0.85rem 4rem; }
+  .topo { margin: -1.25rem -0.85rem 1.5rem; }
+  table { font-size: 0.82rem; }
+  th, td { padding: 0.4rem; }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  * { transition: none !important; animation: none !important; }
+}
