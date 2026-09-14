@@ -29,8 +29,10 @@ export default function EditarRascunho({ params }) {
     itensDaPagina,
     totalNota,
     itensForamEditados,
+    podeSalvar,
     atualizarCliente,
     atualizarItem,
+    removerItem,
     restaurarItens,
     confirmarRecriacao,
   } = useEditarRascunho(id);
@@ -145,6 +147,7 @@ export default function EditarRascunho({ params }) {
             <th className="num">Qtd.</th>
             <th className="num">Valor unitário</th>
             <th className="num">Total da linha</th>
+            <th></th>
           </tr>
         </thead>
         <tbody>
@@ -188,8 +191,25 @@ export default function EditarRascunho({ params }) {
                 />
               </td>
               <td className="num">{formatarMoeda(Number(item.valor_unitario || 0) * Number(item.quantidade || 0))}</td>
+              <td>
+                <button
+                  className="secundario"
+                  style={{ padding: '0.15rem 0.5rem', fontSize: '0.8rem' }}
+                  onClick={() => removerItem(indiceGlobal)}
+                  disabled={!!resultado}
+                >
+                  Remover
+                </button>
+              </td>
             </tr>
           ))}
+          {itensDaPagina.length === 0 && (
+            <tr>
+              <td colSpan={6} className="fraco">
+                Nenhum item na nota. Use &quot;Restaurar valores do rascunho atual&quot; acima para trazer os itens de volta.
+              </td>
+            </tr>
+          )}
         </tbody>
       </table>
 
@@ -204,7 +224,7 @@ export default function EditarRascunho({ params }) {
           <button
             style={{ marginTop: '1.5rem' }}
             onClick={() => setPedindoConfirmacao(true)}
-            disabled={enviando || pedindoConfirmacao}
+            disabled={!podeSalvar || pedindoConfirmacao}
           >
             Salvar como novo rascunho no Tiny
           </button>

@@ -100,6 +100,7 @@ export function montarNotaAtacado(pedidoShopify, classificacao) {
       default:
         valorUnitario = Number(linha.originalUnitPriceSet?.shopMoney?.amount ?? 0);  
     } 
+
     return {
       item: {
         codigo: linha.sku ?? '',
@@ -109,6 +110,7 @@ export function montarNotaAtacado(pedidoShopify, classificacao) {
         valor_unitario: valorMonetario(valorUnitario),
         tipo: 'P',
         gtin_ean: 'SEM GTIN',
+        gtin_ean_embalagem: 'SEM GTIN',
       },
     };
   });
@@ -127,7 +129,7 @@ export function montarNotaAtacado(pedidoShopify, classificacao) {
       frete_por_conta: 'D',
       data_emissao: dataBr(pedidoShopify.createdAt),
       numero_pedido_ecommerce: String(pedidoShopify.name ?? '').replace('#', ''),
-
+      obs: `Pedido vindo do Shopify: ${String(pedidoShopify.name ?? '').replace('#', '')}`,
       cliente: 
       {
         nome: pedidoShopify.customer?.displayName ?? endereco.company ?? '',

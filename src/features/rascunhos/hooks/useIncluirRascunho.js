@@ -58,6 +58,10 @@ export function useIncluirRascunho(id) {
     setItensEditados(itensOriginais);
   }
 
+  function removerItem(indiceGlobal) {
+    setItensEditados((atual) => atual.filter((_, idx) => idx !== indiceGlobal));
+  }
+
   async function confirmarInclusao() {
     setEnviando(true);
     setErroEnvio(null);
@@ -108,7 +112,7 @@ export function useIncluirRascunho(id) {
     ? itensEditados.reduce((soma, it) => soma + Number(it.valor_unitario || 0) * Number(it.quantidade || 0), 0)
     : 0;
   const itensForamEditados = carregado ? JSON.stringify(itensEditados) !== JSON.stringify(itensOriginais) : false;
-  const podeIncluir = carregado && !dados.jaProcessado && !enviando && !resultado;
+  const podeIncluir = carregado && !dados.jaProcessado && !enviando && !resultado && itensEditados.length > 0;
 
   return {
     dados,
@@ -129,6 +133,7 @@ export function useIncluirRascunho(id) {
     podeIncluir,
     atualizarCliente,
     atualizarItem,
+    removerItem,
     restaurarItens,
     confirmarInclusao,
   };

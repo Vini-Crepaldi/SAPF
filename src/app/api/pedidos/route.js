@@ -11,7 +11,7 @@ export const runtime = 'nodejs';
 
 export async function GET(request) {
   try {
-    const limite = Number(new URL(request.url).searchParams.get('limite') ?? 30);
+    const limite = Number(new URL(request.url).searchParams.get('limite') ?? 200);
     const pedidos = await listarPedidosRecentes({ limite });
 
     // Uma consulta só ao Supabase para todos os pedidos da página — tanto para

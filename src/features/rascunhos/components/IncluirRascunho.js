@@ -33,6 +33,7 @@ export default function IncluirRascunho({ params }) {
     podeIncluir,
     atualizarCliente,
     atualizarItem,
+    removerItem,
     restaurarItens,
     confirmarInclusao,
   } = useIncluirRascunho(id);
@@ -140,6 +141,7 @@ export default function IncluirRascunho({ params }) {
             <th className="num">Qtd.</th>
             <th className="num">Valor unitário</th>
             <th className="num">Total da linha</th>
+            <th></th>
           </tr>
         </thead>
         <tbody>
@@ -183,8 +185,25 @@ export default function IncluirRascunho({ params }) {
                 />
               </td>
               <td className="num">{formatarMoeda(Number(item.valor_unitario || 0) * Number(item.quantidade || 0))}</td>
+              <td>
+                <button
+                  className="secundario"
+                  style={{ padding: '0.15rem 0.5rem', fontSize: '0.8rem' }}
+                  onClick={() => removerItem(indiceGlobal)}
+                  disabled={!!resultado}
+                >
+                  Remover
+                </button>
+              </td>
             </tr>
           ))}
+          {itensDaPagina.length === 0 && (
+            <tr>
+              <td colSpan={6} className="fraco">
+                Nenhum item na nota. Use &quot;Restaurar valores originais&quot; acima para trazer os itens de volta.
+              </td>
+            </tr>
+          )}
         </tbody>
       </table>
 

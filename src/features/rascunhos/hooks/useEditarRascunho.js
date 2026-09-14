@@ -58,6 +58,10 @@ export function useEditarRascunho(id) {
     setItensEditados(itensOriginais);
   }
 
+  function removerItem(indiceGlobal) {
+    setItensEditados((atual) => atual.filter((_, idx) => idx !== indiceGlobal));
+  }
+
   async function confirmarRecriacao() {
     setEnviando(true);
     setErroEnvio(null);
@@ -103,6 +107,7 @@ export function useEditarRascunho(id) {
     ? itensEditados.reduce((soma, it) => soma + Number(it.valor_unitario || 0) * Number(it.quantidade || 0), 0)
     : 0;
   const itensForamEditados = carregado ? JSON.stringify(itensEditados) !== JSON.stringify(itensOriginais) : false;
+  const podeSalvar = carregado && !enviando && !resultado && itensEditados.length > 0;
 
   return {
     dados,
@@ -120,8 +125,10 @@ export function useEditarRascunho(id) {
     itensDaPagina,
     totalNota,
     itensForamEditados,
+    podeSalvar,
     atualizarCliente,
     atualizarItem,
+    removerItem,
     restaurarItens,
     confirmarRecriacao,
   };

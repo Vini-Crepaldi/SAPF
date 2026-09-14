@@ -5,11 +5,13 @@
 // específico por endpoint (`pesquisa`, `nota`, `id`...). A resposta vem sempre
 // embrulhada em `retorno`, com `status`, `erros` e `registros`.
 //
-// A inclusão da nota (incluirNotaRascunho) vai em XML, não em JSON: o campo
-// `gtin_ean` do item só existe no schema do endpoint XML
-// (nota.fiscal.incluir.xml.php) — o endpoint JSON (nota.fiscal.incluir.php)
-// não tem esse campo, e sem ele a emissão da nota falhava. Os demais
-// endpoints abaixo continuam em JSON normalmente.
+// incluirNotaRascunho usa nota.fiscal.incluir.php (JSON), como os demais
+// endpoints. Já tentamos duas vezes ir por XML pra conseguir mandar
+// `gtin_ean`: primeiro com o nome errado (nota.fiscal.incluir.xml.php, 404),
+// depois com o nome correto da doc (incluir.nota.xml.php) — mas o Tiny
+// rejeita esse endpoint nesta conta/token mesmo assim. Então ficamos em
+// JSON; o campo `gtin_ean` está no payload mesmo sem confirmação de que o
+// Tiny o usa de fato na emissão — ver alertas se a nota sair sem GTIN.
 //
 // ATENÇÃO — este token é de PRODUÇÃO:
 // 
@@ -95,56 +97,13 @@ async function chamarTiny(endpoint, params= {}) {
  * Retorna { ok, naoEncontrados, multiplos }.
  */
 
-/** Escapa texto para uso seguro dentro de tags XML. */
-function escaparXml(valor) {
-  return String(valor ?? '')
-    .replace(/&/g, '&amp;')
-    .replace(/</g, '&lt;')
-    .replace(/>/g, '&gt;')
-    .replace(/"/g, '&quot;')
-    .replace(/'/g, '&apos;');
-}
-
-/** Serializa as chaves de `obj` como tags-filhas, concatenadas. */
-function paraConteudoXml(obj) {
-  return Object.entries(obj)
-    .map(([chave, v]) => paraTagXml(chave, v))
-    .join('');
-}
-
-/**
- * Serializa `valor` dentro da tag `nome`, recursivamente.
- * Um array vira uma única tag `nome` contendo o conteúdo de cada elemento —
- * cobre o formato já usado em `itens: [{ item: {...} }, ...]`, onde cada
- * elemento já traz sua própria tag interna (`item`), produzindo
- * `<itens><item>...</item><item>...</item></itens>`.
- */
-function paraTagXml(nome, valor) {
-  if (Array.isArray(valor)) {
-    return `<${nome}>${valor.map(paraConteudoXml).join('')}</${nome}>`;
-  }
-  if (valor && typeof valor === 'object') {
-    return `<${nome}>${paraConteudoXml(valor)}</${nome}>`;
-  }
-  return `<${nome}>${escaparXml(valor)}</${nome}>`;
-}
-
-/** Monta o XML completo esperado por nota.fiscal.incluir.xml.php. */
-function montarXmlNotaFiscal(payload) {
-  return `<?xml version="1.0" encoding="UTF-8"?>${paraTagXml('nota_fiscal', payload.nota_fiscal)}`;
-}
-
 /**
  * Cria a nota como RASCUNHO no Tiny (sem valor fiscal).
  * Isto escreve em produção — só chame depois da confirmação na interface.
  */
 export async function incluirNotaRascunho(payload) {
-  const xml = montarXmlNotaFiscal(payload);
-  const retorno = await chamarTiny('nota.fiscal.incluir.xml.php', { xml });
+  const retorno = await chamarTiny('nota.fiscal.incluir.php', { nota: JSON.stringify(payload) });
 
-  // Formato de resposta não confirmado na doc pública — tenta o mesmo shape
-  // do endpoint JSON (registros[].registro.id) e cai para idNotaFiscal caso
-  // o Tiny devolva direto.
   const registro = paraArray(retorno.registros)[0]?.registro ?? null;
   const idNota = registro?.id ?? retorno.idNotaFiscal ?? null;
 
