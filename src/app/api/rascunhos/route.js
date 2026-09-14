@@ -24,7 +24,6 @@ export async function GET(request) {
     total: r.payload_enviado ? totalDaNota(r.payload_enviado) : null,
     criadoEm: r.criado_em,
     atualizadoEm: r.atualizado_em,
-    tinyNotasSubstituidas: r.tiny_notas_substituidas ?? [],
   }));
 
   return Response.json({ rascunhos: lista });

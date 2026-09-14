@@ -43,7 +43,6 @@ export async function GET(request, { params }) {
     totalNota: rascunho.payload_enviado ? totalDaNota(rascunho.payload_enviado) : 0,
     tinyNotaId: rascunho.tiny_nota_id,
     notaEmitida: rascunho.nota_emitida,
-    tinyNotasSubstituidas: rascunho.tiny_notas_substituidas ?? [],
   });
 }
 
@@ -93,7 +92,6 @@ export async function PUT(request, { params }) {
       confirmacao = await obterNota(idNota).catch((erro) => ({ aviso: erro.message }));
     }
 
-    const notasSubstituidas = [...(atual.rascunho.tiny_notas_substituidas ?? [])];
     if (tinyNotaIdAnterior) notasSubstituidas.push(tinyNotaIdAnterior);
 
     const registro = await registrarRascunhoCriado({
