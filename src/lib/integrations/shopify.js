@@ -62,6 +62,7 @@ query PedidoAtacado($id: ID!, $cursor: String) {
   order(id: $id) {
     id name createdAt note
     customAttributes { key value }
+    currentShippingPriceSet { shopMoney { amount } }
     customer {
       id displayName email phone
       metafields(first: 20) { nodes { namespace key value } }

@@ -41,6 +41,34 @@ export async function GET(request, { params }) {
       );
     }
 
+    async function fetchOrderMetafields(orderId) {
+      const STORE = process.env.SHOPIFY_STORE_DOMAIN;
+      const TOKEN = process.env.SHOPIFY_API_TOKEN;
+
+      const res = await fetch(
+        `https://${STORE}/admin/api/2026-07/orders/${orderId}/metafields.json`,
+        {
+          headers: { "X-Shopify-Access-Token": TOKEN || "" },
+          cache: "no-store",
+        },
+      );
+
+      if (!res.ok) return [];
+      const data = await res.json();
+      return data.metafields ?? [];
+    }
+
+    const metafields = await fetchOrderMetafields(id);
+    const noteAttributes = pedido.noteAttributes ?? [];
+
+    const getMetafield = (key) =>
+      metafields.find((m) => m.namespace === "custom" && m.key === key)?.value ??
+      noteAttributes.find((attr) => attr.key === key)?.value ??
+      "";
+
+    const metodoPagamento = getMetafield("metodo_pagamento") || "Não informado";
+    const volumePedido = getMetafield("volume_pedido") || "Não informado";
+
     // 4. Histórico (não bloqueia se o Supabase não estiver configurado).
     const registro = await registrarPreview({
       orderId: pedido.id,
@@ -65,8 +93,12 @@ export async function GET(request, { params }) {
         itens: pedido.lineItems,
         totalItens: pedido.lineItems.length,
         paginasLidas: pedido.paginasLidas,
+        valorFrete: Number(pedido.currentShippingPriceSet?.shopMoney?.amount ?? 0),
         cnpj,
         origemCnpj: origem,
+        metodoPagamento: metodoPagamento,
+        volumePedido: volumePedido
+
       },
       classificacao,
       payload,

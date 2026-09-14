@@ -121,7 +121,19 @@ export default function PreviewPedido({ params }) {
         <strong>Total da nota: {formatarMoeda(dados.totalNota)}</strong>
       </p>
 
-      <p style={{ marginTop: '1.5rem' }}>
+
+      <p>
+        <strong> Frete: {formatarMoeda(dados.pedido.valorFrete)}</strong>
+      </p>
+
+      <p style={{ marginTop: '1rem' }}>
+        <strong> Metodo de Pagamento: {dados.pedido.metodoPagamento}</strong>
+      </p>
+      <p style={{ marginTop: '1rem' }}>
+        <weak> Quantidade de Volumes: {dados.pedido.volumePedido}</weak>
+      </p>
+
+      <p style={{ marginTop: '1.5rem' }}>      
         {dados.jaProcessado ? (
           <span className="fraco">Este pedido já tem rascunho {dados.tinyNotaId} no Tiny.</span>
         ) : (
