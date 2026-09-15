@@ -10,7 +10,7 @@ function Situacao({ pedido }) {
     return <span className="marca marca-ok">rascunho {pedido.tinyNotaId ?? ''}</span>;
   }
   if (pedido.status === 'erro') return <span className="marca marca-erro">erro</span>;
-  if (pedido.status === 'preview') return <span className="marca">preview aberto</span>;
+  if (pedido.status === 'preview') return <span className="marca">em conferência</span>;
   return <span className="fraco">não processado</span>;
 }
 
@@ -37,11 +37,7 @@ export default function ListaPedidos() {
 
   return (
     <>
-      <h2>Pedidos recentes</h2>
-      <p className="fraco">
-        Dados fictícios de <code>exemplos/pedidos-fake.json</code>. Clique em um pedido para conferir a nota
-        antes de criar o rascunho.
-      </p>
+
 
       {erroRascunho && (
         <div className="aviso">
@@ -80,7 +76,7 @@ export default function ListaPedidos() {
             {visiveis.map((p) => (
               <tr key={p.id}>
                 <td>
-                  <a href={`/pedidos/${p.id}`}>{p.name}</a>
+                  <a href={`/pedidos/${p.id}/rascunho`}>{p.name}</a>
                 </td>
                 <td>{formatarDataCurta(p.createdAt)}</td>
                 <td>

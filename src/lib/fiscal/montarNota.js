@@ -153,7 +153,7 @@ export function montarNotaAtacado(pedidoShopify, classificacao) {
   return { payload, alertas };
 }
 
-/** Soma dos itens da nota, para conferência visual no preview. */
+/** Soma dos itens da nota, para conferência visual na tela do rascunho. */
 export function totalDaNota(payload) {
   const itens = payload?.nota_fiscal?.itens ?? [];
   const total = itens.reduce(

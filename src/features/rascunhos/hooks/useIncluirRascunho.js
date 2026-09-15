@@ -29,18 +29,10 @@ export function useIncluirRascunho(id) {
         return corpo;
       })
       .then((corpo) => {
-        // Se a pessoa editou o cliente na tela de conferência, essa edição
-        // chega aqui via sessionStorage e vira o ponto de partida da edição.
-        const chave = `rascunho:${id}:cliente`;
-        const clienteDaConferencia = sessionStorage.getItem(chave);
-        if (clienteDaConferencia) sessionStorage.removeItem(chave);
-
         const itens = (corpo.payload?.nota_fiscal?.itens ?? []).map((i) => ({ ...i.item }));
 
         setDados(corpo);
-        setClienteEditado(
-          clienteDaConferencia ? JSON.parse(clienteDaConferencia) : corpo.payload?.nota_fiscal?.cliente ?? {}
-        );
+        setClienteEditado(corpo.payload?.nota_fiscal?.cliente ?? {});
         setItensEditados(itens);
         setItensOriginais(itens);
       })

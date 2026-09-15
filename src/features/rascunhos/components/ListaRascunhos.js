@@ -83,7 +83,7 @@ export default function ListaRascunhos() {
                 <Fragment key={r.id}>
                   <tr>
                     <td>
-                      <a href={`/pedidos/${r.id}`}>{r.orderName}</a>
+                      <a href={`/pedidos/${r.id}/rascunho/editar`}>{r.orderName}</a>
                     </td>
                     <td>{r.razaoSocial}</td>
                     <td>

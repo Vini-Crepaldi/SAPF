@@ -16,7 +16,7 @@
 // ATENÇÃO — este token é de PRODUÇÃO:
 // 
 //   - incluirNotaRascunho: CRIA uma nota de verdade no Tiny, mesmo a partir de
-//     um pedido fictício. A tela de preview exige uma confirmação explícita.
+//     um pedido fictício. A tela do rascunho exige uma confirmação explícita.
 //   - emitirNota: dá valor fiscal à nota. Bloqueada por "permitir_emissao"
 //     (Supabase — ver lib/db.js::obterPermitirEmissao).
 

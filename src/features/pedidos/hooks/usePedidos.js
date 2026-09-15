@@ -22,8 +22,8 @@ export function usePedidos() {
       .catch((e) => setErro(e.message));
   }, []);
 
-  // Busca o preview (payload que vai pro Tiny) e, se confirmado, cria o
-  // rascunho — tudo a partir da linha, sem passar pela tela de conferência.
+  // Busca o payload que vai pro Tiny e, se confirmado, cria o rascunho — tudo
+  // a partir da linha, sem abrir a tela do rascunho.
   async function criarRascunho(pedido) {
     const confirmou = window.confirm(
       `Confirma a criação do rascunho para o pedido ${pedido.name}? Isto grava uma nota real no Tiny de produção.`

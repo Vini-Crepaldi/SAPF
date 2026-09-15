@@ -24,8 +24,8 @@ A integração com o Shopify já é real (Admin GraphQL API), não simulada.
 São duas, independentes:
 
 1. **Confirmação na tela.** Criar o rascunho exige marcar `confirmacaoTeste`
-   no preview. Sem ela, o endpoint (`POST /api/pedidos/[id]/rascunho`) recusa
-   a requisição.
+   na tela do rascunho. Sem ela, o endpoint (`POST /api/pedidos/[id]/rascunho`)
+   recusa a requisição.
 2. **`PERMITIR_EMISSAO=false`.** Trava só a emissão fiscal
    (`POST /api/pedidos/[id]/emitir`). A checagem é feita duas vezes — na rota
    e de novo dentro de `emitirNota` em `src/lib/integrations/tiny.js` — para
@@ -117,14 +117,14 @@ src/
   app/
     page.js                          Entrada da rota inicial -> features/inicio
     pedidos/page.js                  Entrada da lista -> features/pedidos
-    pedidos/[id]/page.js             Entrada do preview -> features/pedidos
-    pedidos/[id]/rascunho/page.js            Inclusão do rascunho -> features/rascunhos
+    pedidos/[id]/rascunho/page.js            Conferência e inclusão do rascunho -> features/rascunhos
     pedidos/[id]/rascunho/editar/page.js     Edição do rascunho -> features/rascunhos
     rascunhos/page.js                Entrada do histórico -> features/rascunhos
     layout.js                        Cabeçalho + CSS global
     api/saude/route.js               Testa Shopify, Tiny e Supabase
     api/pedidos/route.js             Lista pedidos + classificação + situação
-    api/pedidos/[id]/preview/        Monta o payload da nota (só leitura)
+    api/pedidos/[id]/preview/        Monta o payload da nota que a tela do rascunho
+                                      consome (só leitura)
     api/pedidos/[id]/rascunho/       Cria/edita o rascunho no Tiny (escreve em produção)
     api/pedidos/[id]/situacao/       Confere no Tiny se a nota já foi emitida
     api/pedidos/[id]/danfe/          Resolve e redireciona pro link do DANFE
@@ -142,10 +142,9 @@ src/
       hooks/useSaude.js
     pedidos/
       components/ListaPedidos.js     Lista de pedidos classificados, com filtro
-      components/PreviewPedido.js    Preview da nota: campos editáveis, itens, envio
-      hooks/usePedidos.js, hooks/usePreviewPedido.js
+      hooks/usePedidos.js
     rascunhos/
-      components/IncluirRascunho.js  Último passo: grava o rascunho no Tiny
+      components/IncluirRascunho.js  Confere a nota e grava o rascunho no Tiny
       components/EditarRascunho.js   Corrige um rascunho já criado no Tiny
       components/ListaRascunhos.js   Histórico de rascunhos + emissão da nota
       hooks/useRascunhos.js, hooks/useIncluirRascunho.js, hooks/useEditarRascunho.js
@@ -157,7 +156,7 @@ src/
     db.js                            Histórico, franquias e configurações no Supabase
     fiscal/
       classificacao.js               Atacado, franquia ou outro, a partir do CNPJ
-      camposCliente.js                Lista dos campos do cliente exibidos no preview e nas telas de rascunho
+      camposCliente.js                Lista dos campos do cliente exibidos nas telas de rascunho
       montarNota.js                  Pedido do Shopify -> JSON do nota.fiscal.incluir
     integrations/
       shopify.js                     Admin GraphQL API — fonte real dos pedidos

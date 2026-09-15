@@ -1,5 +1,6 @@
-// GET /api/pedidos/[id]/preview — monta tudo o que a tela de conferência
-// precisa. Só faz LEITURA: nada é gravado no Tiny aqui.
+// GET /api/pedidos/[id]/preview — monta tudo o que a tela do rascunho
+// (/pedidos/[id]/rascunho) precisa. Só faz LEITURA: nada é gravado no Tiny
+// aqui.
 
 import { obterPedidoCompleto } from '@/lib/integrations/shopify';
 import { classificarPedido, extrairCnpj } from '@/lib/fiscal/classificacao';

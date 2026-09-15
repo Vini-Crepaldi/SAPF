@@ -1,6 +1,5 @@
-// Campos do cliente que aparecem na nota fiscal — mesma lista usada no
-// preview (pedidos) e nas telas de rascunho, para o formulário ficar igual
-// nas três.
+// Campos do cliente que aparecem na nota fiscal — mesma lista usada nas telas
+// de inclusão e de edição do rascunho, para o formulário ficar igual nas duas.
 
 export const CAMPOS_CLIENTE = [
   ['nome', 'Nome / razão social'],

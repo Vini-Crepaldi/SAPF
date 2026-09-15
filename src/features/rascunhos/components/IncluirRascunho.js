@@ -1,8 +1,9 @@
-// /pedidos/[id]/rascunho — último passo: incluir o rascunho da nota no Tiny.
+// /pedidos/[id]/rascunho — conferência e inclusão do rascunho da nota no Tiny.
 //
-// Cliente e itens ficam editáveis aqui — é a última chance de corrigir algo
-// antes de gravar no Tiny. A tela só grava depois de duas ações da pessoa:
-// clicar em "Incluir rascunho" e depois confirmar no aviso que aparece.
+// É a primeira tela que se abre ao clicar num pedido da lista: cliente e itens
+// chegam prontos e editáveis, e é aqui que se confere tudo antes de gravar. A
+// tela só grava depois de duas ações da pessoa: clicar em "Incluir rascunho" e
+// depois confirmar no aviso que aparece.
 
 'use client';
 
@@ -81,6 +82,10 @@ export default function IncluirRascunho({ params }) {
       </h2>
       <p className="fraco">
         Confira e corrija o que precisar antes de enviar. É exatamente isto que vai para o Tiny.
+      </p>
+      <p className="fraco">
+        {dados.pedido.totalItens} itens lidos em {dados.pedido.paginasLidas} página(s).
+        {dados.pedido.origemCnpj && ` CNPJ encontrado em ${dados.pedido.origemCnpj}.`}
       </p>
 
       {dados.jaProcessado && (
@@ -267,9 +272,14 @@ export default function IncluirRascunho({ params }) {
         </div>
       )}
 
-      <p style={{ marginTop: '1rem' }}>
-        <strong>Total da nota: {formatarMoeda(totalNota)}</strong>
-      </p>
+      <div className="cartao" style={{ marginTop: '1rem' }}>
+        <div>
+          <strong>Total da nota: {formatarMoeda(totalNota)}</strong>
+        </div>
+        <div>Frete: {formatarMoeda(dados.pedido.valorFrete)}</div>
+        <div>Método de pagamento: {dados.pedido.metodoPagamento}</div>
+        <div>Quantidade de volumes: {dados.pedido.volumePedido}</div>
+      </div>
 
       {!resultado && (
         <>

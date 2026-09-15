@@ -28,8 +28,8 @@ export function dataBr(iso) {
 }
 
 /** Tenta separar "Rua das Flores 120" em { logradouro, numero }.
- *  Quando não dá para separar com segurança, devolve numero vazio — o preview
- *  deixa o campo editável justamente para esses casos. */
+ *  Quando não dá para separar com segurança, devolve numero vazio — a tela do
+ *  rascunho deixa o campo editável justamente para esses casos. */
 export function separarLogradouro(address1) {
   const texto = String(address1 ?? '').trim();
   if (!texto) return { logradouro: '', numero: '' };

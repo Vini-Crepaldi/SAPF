@@ -149,7 +149,7 @@ export async function POST(request, { params }) {
   }
 
   if (!payload?.nota_fiscal?.itens?.length) {
-    return erroJson('Payload sem itens. Volte ao preview e confira o pedido.', 400);
+    return erroJson('Payload sem itens. Volte à tela do rascunho e confira o pedido.', 400);
   }
 
   // Trava 2 — nunca criar dois rascunhos para o mesmo pedido.
