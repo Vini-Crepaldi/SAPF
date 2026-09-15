@@ -14,6 +14,7 @@ export function useIncluirRascunho(id) {
   const [clienteEditado, setClienteEditado] = useState(null);
   const [itensEditados, setItensEditados] = useState(null);
   const [itensOriginais, setItensOriginais] = useState(null);
+  const [itensRemovidos, setItensRemovidos] = useState([]);
 
   const [pedindoConfirmacao, setPedindoConfirmacao] = useState(false);
   const [enviando, setEnviando] = useState(false);
@@ -56,10 +57,22 @@ export function useIncluirRascunho(id) {
 
   function restaurarItens() {
     setItensEditados(itensOriginais);
+    setItensRemovidos([]);
   }
 
   function removerItem(indiceGlobal) {
+    const item = itensEditados[indiceGlobal];
+    if (!item) return;
     setItensEditados((atual) => atual.filter((_, idx) => idx !== indiceGlobal));
+    setItensRemovidos((atual) => [...atual, item]);
+  }
+
+  /** Devolve um item removido para a lista de itens da nota. */
+  function restaurarItemRemovido(indice) {
+    const item = itensRemovidos[indice];
+    if (!item) return;
+    setItensRemovidos((atual) => atual.filter((_, idx) => idx !== indice));
+    setItensEditados((atual) => [...atual, item]);
   }
 
   async function confirmarInclusao() {
@@ -131,9 +144,11 @@ export function useIncluirRascunho(id) {
     totalNota,
     itensForamEditados,
     podeIncluir,
+    itensRemovidos,
     atualizarCliente,
     atualizarItem,
     removerItem,
+    restaurarItemRemovido,
     restaurarItens,
     confirmarInclusao,
   };

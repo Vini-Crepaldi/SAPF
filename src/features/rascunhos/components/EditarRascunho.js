@@ -5,10 +5,15 @@
 
 'use client';
 
+import { useState } from 'react';
 import Paginacao from '@/components/ui/Paginacao';
 import { CAMPOS_CLIENTE } from '@/lib/fiscal/camposCliente';
 import { formatarMoeda } from '@/lib/format';
 import { useEditarRascunho } from '../hooks/useEditarRascunho';
+
+// Duração da transição de saída da linha (ver .linha-saindo em globals.css) —
+// a remoção de verdade só acontece depois, senão a linha some sem animar.
+const DURACAO_ANIMACAO_MS = 250;
 
 export default function EditarRascunho({ params }) {
   const { id } = params;
@@ -30,12 +35,28 @@ export default function EditarRascunho({ params }) {
     totalNota,
     itensForamEditados,
     podeSalvar,
+    itensRemovidos,
     atualizarCliente,
     atualizarItem,
     removerItem,
+    restaurarItemRemovido,
     restaurarItens,
     confirmarRecriacao,
   } = useEditarRascunho(id);
+
+  const [saindoIndices, setSaindoIndices] = useState(() => new Set());
+
+  function handleRemover(indiceGlobal) {
+    setSaindoIndices((atual) => new Set(atual).add(indiceGlobal));
+    setTimeout(() => {
+      removerItem(indiceGlobal);
+      setSaindoIndices((atual) => {
+        const proximo = new Set(atual);
+        proximo.delete(indiceGlobal);
+        return proximo;
+      });
+    }, DURACAO_ANIMACAO_MS);
+  }
 
   if (erroCarregamento && !dados) {
     return (
@@ -152,7 +173,7 @@ export default function EditarRascunho({ params }) {
         </thead>
         <tbody>
           {itensDaPagina.map(({ item, indiceGlobal }) => (
-            <tr key={indiceGlobal}>
+            <tr key={indiceGlobal} className={saindoIndices.has(indiceGlobal) ? 'linha-saindo' : undefined}>
               <td>
                 <input
                   className="mono"
@@ -195,8 +216,8 @@ export default function EditarRascunho({ params }) {
                 <button
                   className="secundario"
                   style={{ padding: '0.15rem 0.5rem', fontSize: '0.8rem' }}
-                  onClick={() => removerItem(indiceGlobal)}
-                  disabled={!!resultado}
+                  onClick={() => handleRemover(indiceGlobal)}
+                  disabled={!!resultado || saindoIndices.has(indiceGlobal)}
                 >
                   Remover
                 </button>
@@ -214,6 +235,43 @@ export default function EditarRascunho({ params }) {
       </table>
 
       <Paginacao pagina={pagina} totalPaginas={totalPaginas} aoMudarPagina={setPagina} />
+
+      {itensRemovidos.length > 0 && (
+        <div className="cartao" style={{ marginTop: '1rem' }}>
+          <strong>Itens removidos desta nota ({itensRemovidos.length})</strong>
+          <table style={{ marginTop: '0.5rem' }}>
+            <thead>
+              <tr>
+                <th>SKU</th>
+                <th>Descrição</th>
+                <th className="num">Qtd.</th>
+                <th className="num">Valor unitário</th>
+                <th></th>
+              </tr>
+            </thead>
+            <tbody>
+              {itensRemovidos.map((item, indice) => (
+                <tr key={indice}>
+                  <td className="mono">{item.codigo}</td>
+                  <td>{item.descricao}</td>
+                  <td className="num">{item.quantidade}</td>
+                  <td className="num">{formatarMoeda(Number(item.valor_unitario || 0))}</td>
+                  <td>
+                    <button
+                      className="secundario"
+                      style={{ padding: '0.15rem 0.5rem', fontSize: '0.8rem' }}
+                      onClick={() => restaurarItemRemovido(indice)}
+                      disabled={!!resultado}
+                    >
+                      Restaurar
+                    </button>
+                  </td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        </div>
+      )}
 
       <p style={{ marginTop: '1rem' }}>
         <strong>Total do novo rascunho: {formatarMoeda(totalNota)}</strong>

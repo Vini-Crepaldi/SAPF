@@ -5,6 +5,7 @@
 // funções devolvem { ok, erro } em vez de lançar exceção.
 
 import { createClient } from '@supabase/supabase-js';
+import { somenteDigitos } from './utils.js';
 
 let cliente = null;
 
@@ -258,7 +259,11 @@ export async function listarCnpjsFranquia() {
   const { data, error } = await db.from('cnpjs_franquia').select('cnpj').eq('ativo', true);
 
   if (error) return { ok: false, erro: error.message, cnpjs: [] };
-  return { ok: true, cnpjs: (data ?? []).map((r) => r.cnpj) };
+  // O cadastro no Supabase deveria ser só dígitos (ver schema.sql), mas quem
+  // insere manualmente às vezes cola o CNPJ com máscara — normalizamos aqui
+  // para não depender disso, já que a comparação em classificacao.js usa
+  // somenteDigitos() no CNPJ extraído do pedido.
+  return { ok: true, cnpjs: (data ?? []).map((r) => somenteDigitos(r.cnpj)) };
 }
 
 /** Ping usado pelo /api/saude. */

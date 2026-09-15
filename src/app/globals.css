@@ -91,6 +91,7 @@ th, td { text-align: left; padding: 0.55rem 0.6rem; border-bottom: 1px solid var
 th { font-weight: 600; background: var(--papel-alt); white-space: nowrap; }
 td.num, th.num { text-align: right; }
 tbody tr:hover { background: var(--realce); }
+tbody tr.linha-saindo { opacity: 0; background: var(--alerta-fundo); transition: opacity 0.25s ease, background-color 0.25s ease; }
 
 .marca {
   display: inline-block;
