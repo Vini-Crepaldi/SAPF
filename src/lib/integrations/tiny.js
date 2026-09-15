@@ -21,6 +21,7 @@
 //     (Supabase — ver lib/db.js::obterPermitirEmissao).
 
 import { obterPermitirEmissao } from '../db.js';
+import { somenteDigitos } from '../utils.js';
 
 const BASE = () => process.env.TINY_API_BASE || 'https://api.tiny.com.br/api2';
 
@@ -174,3 +175,143 @@ export async function verificarTiny() {
 }
 
 
+
+// ---------------------------------------------------------------------------
+// Cadastro do cliente (contato) — campo "Contribuinte"
+//
+// "Contribuinte" NÃO é campo de nota. nota.fiscal.incluir não aceita
+// `contribuinte` em nível nenhum (nem em `cliente`, nem na raiz), e
+// nota.fiscal.obter de uma nota real desta conta devolve o cliente sem ele.
+// O campo mora no cadastro do contato, e a nota herda dele na emissão — é o
+// indIEDest da NFe. Por isso, garantir "Contribuinte ICMS" em toda nota
+// significa marcar o CADASTRO antes de criar o rascunho.
+//
+// `atualizar_cliente: 'S'` na nota não resolveria: o Tiny só atualizaria o
+// cadastro com os campos que vieram na nota, e contribuinte não é um deles.
+// ---------------------------------------------------------------------------
+
+/** Valores aceitos em `contribuinte` no cadastro de contato do Tiny. */
+export const CONTRIBUINTE_ICMS = '1';
+
+const ROTULO_CONTRIBUINTE = {
+  0: 'não informado',
+  1: 'Contribuinte ICMS',
+  2: 'Contribuinte isento',
+  9: 'Não contribuinte',
+};
+
+function rotuloContribuinte(valor) {
+  return ROTULO_CONTRIBUINTE[valor] ?? `código ${valor}`;
+}
+
+/**
+ * Contatos com este CNPJ. Devolve lista vazia quando não há nenhum: nesse caso
+ * o Tiny responde status "Erro" com "A consulta não retornou registros", o que
+ * chamarTiny transformaria em exceção — e não achar cliente não é falha.
+ */
+async function pesquisarContatosPorCnpj(cnpj) {
+  let retorno;
+  try {
+    retorno = await chamarTiny('contatos.pesquisa.php', { cpf_cnpj: cnpj });
+  } catch (erro) {
+    if (/não retornou registros|nao retornou registros/i.test(erro.message)) return [];
+    throw erro;
+  }
+
+  const contatos = paraArray(retorno.contatos).map((c) => c.contato ?? c);
+
+  // O parâmetro cpf_cnpj é exato hoje, mas conferimos de novo pelos dígitos:
+  // marcar o contato errado como contribuinte é pior do que não marcar nenhum.
+  return contatos.filter((c) => somenteDigitos(c.cpf_cnpj) === somenteDigitos(cnpj));
+}
+
+/**
+ * Marca o cadastro do cliente como "Contribuinte ICMS" no Tiny.
+ *
+ * ISTO ESCREVE EM PRODUÇÃO — altera o cadastro de contatos, não a nota. Só é
+ * chamado dentro do fluxo de inclusão do rascunho, que já exige confirmação
+ * explícita na tela.
+ *
+ * O cadastro desta conta tem CNPJ repetido em contatos de nomes diferentes
+ * (um mesmo CNPJ chegou a devolver 5 contatos). A regra combinada é marcar o
+ * PRIMEIRO — por isso devolvemos quantos apareceram, para a tela deixar isso
+ * à vista em vez de esconder a escolha.
+ *
+ * Nunca lança: devolve o que aconteceu, porque uma falha aqui não pode
+ * derrubar a criação do rascunho.
+ *
+ * @returns {Promise<{ok: boolean, alterado: boolean, mensagem: string}>}
+ */
+export async function garantirContribuinteIcms(cnpj) {
+  const digitos = somenteDigitos(cnpj);
+
+  if (digitos.length !== 14) {
+    return {
+      ok: false,
+      alterado: false,
+      mensagem: 'Contribuinte ICMS não aplicado: o cliente da nota não tem CNPJ de 14 dígitos.',
+    };
+  }
+
+  try {
+    const contatos = await pesquisarContatosPorCnpj(digitos);
+    if (contatos.length === 0) {
+      return {
+        ok: false,
+        alterado: false,
+        mensagem: `Contribuinte ICMS não aplicado: nenhum contato com o CNPJ ${digitos} no cadastro do Tiny.`,
+      };
+    }
+
+    const [contato] = contatos;
+    const duplicados =
+      contatos.length > 1
+        ? ` Atenção: este CNPJ tem ${contatos.length} contatos no Tiny e marcamos o primeiro — confira se é o certo.`
+        : '';
+
+    // contatos.pesquisa não devolve `contribuinte`; só o cadastro completo tem.
+    const cadastro = await chamarTiny('contato.obter.php', { id: String(contato.id) });
+    const atual = String(cadastro.contato?.contribuinte ?? '0');
+
+    if (atual === CONTRIBUINTE_ICMS) {
+      return {
+        ok: true,
+        alterado: false,
+        mensagem: `Cadastro de "${contato.nome}" já estava como Contribuinte ICMS.${duplicados}`,
+      };
+    }
+
+    // `sequencia`, `nome` e `situacao` são obrigatórios mesmo numa alteração
+    // parcial — devolvemos os valores que já estão lá para não mexer em nada
+    // além de `contribuinte`.
+    await chamarTiny('contato.alterar.php', {
+      contato: JSON.stringify({
+        contatos: [
+          {
+            contato: {
+              sequencia: 1,
+              id: String(contato.id),
+              nome: cadastro.contato?.nome ?? contato.nome,
+              situacao: cadastro.contato?.situacao ?? 'A',
+              contribuinte: CONTRIBUINTE_ICMS,
+            },
+          },
+        ],
+      }),
+    });
+
+    return {
+      ok: true,
+      alterado: true,
+      mensagem:
+        `Cadastro de "${contato.nome}" (contato ${contato.id}) marcado como Contribuinte ICMS ` +
+        `— antes estava como ${rotuloContribuinte(atual)}.${duplicados}`,
+    };
+  } catch (erro) {
+    return {
+      ok: false,
+      alterado: false,
+      mensagem: `Contribuinte ICMS não aplicado: ${erro.message}`,
+    };
+  }
+}

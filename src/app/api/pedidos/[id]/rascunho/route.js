@@ -14,7 +14,7 @@
 // Nenhum dos dois trata emissão fiscal (nota.fiscal.emitir) — isso mora em
 // /api/pedidos/[id]/emitir.
 
-import { incluirNotaRascunho, obterNota } from '@/lib/integrations/tiny';
+import { garantirContribuinteIcms, incluirNotaRascunho, obterNota } from '@/lib/integrations/tiny';
 import {
   jaProcessado,
   obterRascunhoCriado,
@@ -163,6 +163,16 @@ export async function POST(request, { params }) {
     );
   }
 
+  // "Contribuinte" não é campo da nota — a nota herda do cadastro do cliente
+  // (ver tiny.js). Então o cadastro é marcado como Contribuinte ICMS ANTES da
+  // inclusão. Falhar aqui não derruba o rascunho: a nota ainda é só rascunho e
+  // a emissão é manual dentro do Tiny, então o aviso volta para a tela e a
+  // pessoa decide o que fazer.
+  const contribuinte = await garantirContribuinteIcms(payload?.nota_fiscal?.cliente?.cpf_cnpj);
+  if (!contribuinte.ok) {
+    console.error(`[rascunho] Pedido ${gid}: ${contribuinte.mensagem}`);
+  }
+
   try {
     const { idNota, retorno } = await incluirNotaRascunho(payload);
 
@@ -195,6 +205,7 @@ export async function POST(request, { params }) {
       ok: true,
       tinyNotaId: idNota,
       confirmacao,
+      contribuinte,
       mensagem:
         'Rascunho criado no Tiny. Confira os dados e emita a nota manualmente dentro do Tiny — ' +
         'este sistema não emite notas.',

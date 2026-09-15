@@ -113,6 +113,11 @@ export default function IncluirRascunho({ params }) {
         <div className="aviso aviso-ok">
           <strong>Rascunho criado no Tiny — nota {resultado.tinyNotaId ?? 'sem id retornado'}.</strong>
           <p>{resultado.mensagem}</p>
+          {resultado.contribuinte && (
+            <p className={resultado.contribuinte.ok ? 'fraco' : undefined}>
+              {resultado.contribuinte.mensagem}
+            </p>
+          )}
           <p>
             <a href="/pedidos">Voltar para a lista de pedidos</a>
           </p>

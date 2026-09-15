@@ -4,6 +4,7 @@
 export const CAMPOS_CLIENTE = [
   ['nome', 'Nome / razão social'],
   ['cpf_cnpj', 'CNPJ'],
+  ['ie', 'Inscrição estadual (IE)'],
   ['endereco', 'Logradouro'],
   ['numero', 'Número'],
   ['complemento', 'Complemento'],

@@ -7,6 +7,7 @@
 
 import { dataBr, separarLogradouro, somenteDigitos, valorMonetario } from '../utils.js';
 import { extrairCnpj } from './classificacao.js';
+import { extrairIe } from './inscricaoEstadual.js';
 
 /**
  * @param {object} pedidoShopify pedido já completo (com todos os lineItems)
@@ -82,6 +83,17 @@ export function montarNotaAtacado(pedidoShopify, classificacao) {
   if (!cnpj) {
     alertas.push('CNPJ não localizado no pedido. A nota não pode ser criada sem ele.');
   }
+
+  // A IE só existe na observação escrita à mão (ver inscricaoEstadual.js), e a
+  // natureza da operação aqui é sempre "Venda para contribuinte" — sair sem IE
+  // é erro, então avisamos em vez de deixar o campo vazio passar batido.
+  const { ie } = extrairIe(pedidoShopify);
+  if (!ie) {
+    alertas.push(
+      'Inscrição estadual (IE) não localizada nas observações do pedido. Preencha o campo à mão antes de incluir o rascunho.'
+    );
+  }
+
   const itens = (pedidoShopify.lineItems ?? []).map((linha) => {
     if (!linha.sku) {
       alertas.push(`Item "${linha.title}" está sem SKU no Shopify.`);
@@ -135,6 +147,7 @@ export function montarNotaAtacado(pedidoShopify, classificacao) {
         nome: pedidoShopify.customer?.displayName ?? endereco.company ?? '',
         tipo_pessoa: 'J', 
         cpf_cnpj: cnpj,
+        ie,
         endereco: logradouro,
         numero: numero,
         complemento: complemento,
