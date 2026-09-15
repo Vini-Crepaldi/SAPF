@@ -29,19 +29,8 @@ export async function GET(request, { params }) {
       );
     }
 
-    // 2. Nota montada a partir do pedido.
-    const { payload, alertas: alertasNota } = montarNotaAtacado(pedido, classificacao);
-    alertas.push(...alertasNota);
-
-    // 3. Já existe rascunho para este pedido?
-    const processado = await jaProcessado(paraGid(id));
-    if (processado.processado) {
-      alertas.push(
-        `Este pedido já gerou o rascunho ${processado.tinyNotaId} no Tiny. ` +
-          'Criar outro geraria nota duplicada.'
-      );
-    }
-
+    // 2. Metafields do pedido — lidos antes da nota porque a quantidade de
+    // volumes vai dentro dela (bloco de transporte).
     async function fetchOrderMetafields(orderId) {
       const STORE = process.env.SHOPIFY_STORE_DOMAIN;
       const TOKEN = process.env.SHOPIFY_API_TOKEN;
@@ -70,7 +59,22 @@ export async function GET(request, { params }) {
     const metodoPagamento = getMetafield("metodo_pagamento") || "Não informado";
     const volumePedido = getMetafield("volume_pedido") || "Não informado";
 
-    // 4. Histórico (não bloqueia se o Supabase não estiver configurado).
+    // 3. Nota montada a partir do pedido.
+    const { payload, alertas: alertasNota } = montarNotaAtacado(pedido, classificacao, {
+      volumes: volumePedido,
+    });
+    alertas.push(...alertasNota);
+
+    // 4. Já existe rascunho para este pedido?
+    const processado = await jaProcessado(paraGid(id));
+    if (processado.processado) {
+      alertas.push(
+        `Este pedido já gerou o rascunho ${processado.tinyNotaId} no Tiny. ` +
+          'Criar outro geraria nota duplicada.'
+      );
+    }
+
+    // 5. Histórico (não bloqueia se o Supabase não estiver configurado).
     const registro = await registrarPreview({
       orderId: pedido.id,
       orderName: pedido.name,

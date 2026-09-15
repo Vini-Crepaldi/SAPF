@@ -8,10 +8,13 @@
 import { dataBr, separarLogradouro, somenteDigitos, valorMonetario } from '../utils.js';
 import { extrairCnpj } from './classificacao.js';
 import { extrairIe } from './inscricaoEstadual.js';
+import { TRANSPORTE_PADRAO, quantidadeDeVolumes } from './transporte.js';
 
 /**
  * @param {object} pedidoShopify pedido já completo (com todos os lineItems)
  * @param {"atacado"|"franquia"} classificacao
+ * @param {{ volumes?: string|number }} [opcoes] `volumes` é o metafield
+ *   `volume_pedido` do Shopify, cru — quem lê o metafield é a rota do preview.
  * @returns {{ payload: object, alertas: string[] }}
  */
 
@@ -42,7 +45,7 @@ function enderecoDosAtributos(customAttributes, prefixo) {
   };
 }
 
-export function montarNotaAtacado(pedidoShopify, classificacao) {
+export function montarNotaAtacado(pedidoShopify, classificacao, opcoes = {}) {
   const alertas = [];
 
   if (classificacao === 'atacado') {
@@ -94,6 +97,16 @@ export function montarNotaAtacado(pedidoShopify, classificacao) {
     );
   }
 
+  // Volumes é campo da nota, não do cadastro da transportadora — sem ele o
+  // Tiny assume 1 e a etiqueta sai errada, então é melhor avisar do que deixar
+  // passar batido.
+  const volumes = quantidadeDeVolumes(opcoes.volumes);
+  if (!volumes) {
+    alertas.push(
+      'Quantidade de volumes não veio do Shopify — a nota vai com 1 volume. Confira antes de despachar.'
+    );
+  }
+
   const itens = (pedidoShopify.lineItems ?? []).map((linha) => {
     if (!linha.sku) {
       alertas.push(`Item "${linha.title}" está sem SKU no Shopify.`);
@@ -139,6 +152,9 @@ export function montarNotaAtacado(pedidoShopify, classificacao) {
       tipo: 'S', // S = saída
       natureza_operacao: `Venda para contribuinte`,
       frete_por_conta: 'D',
+      // Transporte: sempre Correios / Sedex Contrato AG — ver transporte.js.
+      ...TRANSPORTE_PADRAO,
+      quantidade_volumes: volumes ?? 1,
       data_emissao: dataBr(pedidoShopify.createdAt),
       numero_pedido_ecommerce: String(pedidoShopify.name ?? '').replace('#', ''),
       obs: `Pedido vindo do Shopify: ${String(pedidoShopify.name ?? '').replace('#', '')}`,

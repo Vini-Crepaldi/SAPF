@@ -10,6 +10,7 @@
 import { useState } from 'react';
 import Paginacao from '@/components/ui/Paginacao';
 import { CAMPOS_CLIENTE } from '@/lib/fiscal/camposCliente';
+import { ROTULO_FORMA_FRETE, ROTULO_TRANSPORTADORA } from '@/lib/fiscal/transporte';
 import { formatarMoeda } from '@/lib/format';
 import { useIncluirRascunho } from '../hooks/useIncluirRascunho';
 
@@ -283,7 +284,12 @@ export default function IncluirRascunho({ params }) {
         </div>
         <div>Frete: {formatarMoeda(dados.pedido.valorFrete)}</div>
         <div>Método de pagamento: {dados.pedido.metodoPagamento}</div>
-        <div>Quantidade de volumes: {dados.pedido.volumePedido}</div>
+        <div>Transportadora: {ROTULO_TRANSPORTADORA}</div>
+        <div>Forma de frete: {ROTULO_FORMA_FRETE}</div>
+        {/* O que vai na nota é o número já lido do payload, não o texto cru do
+            metafield — se o Shopify não mandou nada, a nota vai com 1 volume e
+            o alerta lá em cima avisa. */}
+        <div>Quantidade de volumes: {dados.payload?.nota_fiscal?.quantidade_volumes ?? 1}</div>
       </div>
 
       {!resultado && (
