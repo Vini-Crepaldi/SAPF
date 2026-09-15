@@ -10,6 +10,7 @@
 import { useState } from 'react';
 import Paginacao from '@/components/ui/Paginacao';
 import { CAMPOS_CLIENTE } from '@/lib/fiscal/camposCliente';
+import { CATEGORIA_PADRAO, rotuloFormaPagamento } from '@/lib/fiscal/pagamento';
 import { ROTULO_FORMA_FRETE, ROTULO_TRANSPORTADORA } from '@/lib/fiscal/transporte';
 import { formatarMoeda } from '@/lib/format';
 import { useIncluirRascunho } from '../hooks/useIncluirRascunho';
@@ -283,7 +284,27 @@ export default function IncluirRascunho({ params }) {
           <strong>Total da nota: {formatarMoeda(totalNota)}</strong>
         </div>
         <div>Frete: {formatarMoeda(dados.pedido.valorFrete)}</div>
-        <div>Método de pagamento: {dados.pedido.metodoPagamento}</div>
+        <div>Método de pagamento (Shopify): {dados.pedido.metodoPagamento}</div>
+        {/* O que vai na nota nem sempre é o que veio do Shopify: franquia com
+            boleto vira "múltiplas" com 3 parcelas (ver pagamento.js). */}
+        <div>
+          Forma de pagamento na nota:{' '}
+          {rotuloFormaPagamento(dados.payload?.nota_fiscal?.forma_pagamento)}
+        </div>
+        {dados.payload?.nota_fiscal?.parcelas?.length > 0 && (
+          <div>
+            Parcelas:{' '}
+            {dados.payload.nota_fiscal.parcelas
+              .map(({ parcela }) => `${parcela.dias} dias (${parcela.data})`)
+              .join(', ')}
+          </div>
+        )}
+        {/* Categoria não é campo de nota fiscal na API do Tiny — ver
+            pagamento.js. Fica como lembrete em vez de sumir da tela. */}
+        <div className="fraco">
+          Categoria: preencher como &quot;{CATEGORIA_PADRAO}&quot; dentro do Tiny — a API não aceita
+          esse campo.
+        </div>
         <div>Transportadora: {ROTULO_TRANSPORTADORA}</div>
         <div>Forma de frete: {ROTULO_FORMA_FRETE}</div>
         {/* O que vai na nota é o número já lido do payload, não o texto cru do

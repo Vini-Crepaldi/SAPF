@@ -8,13 +8,16 @@
 import { dataBr, separarLogradouro, somenteDigitos, valorMonetario } from '../utils.js';
 import { extrairCnpj } from './classificacao.js';
 import { extrairIe } from './inscricaoEstadual.js';
+import { montarPagamento } from './pagamento.js';
 import { TRANSPORTE_PADRAO, quantidadeDeVolumes } from './transporte.js';
 
 /**
  * @param {object} pedidoShopify pedido já completo (com todos os lineItems)
  * @param {"atacado"|"franquia"} classificacao
- * @param {{ volumes?: string|number }} [opcoes] `volumes` é o metafield
- *   `volume_pedido` do Shopify, cru — quem lê o metafield é a rota do preview.
+ * @param {{ volumes?: string|number, metodoPagamento?: string }} [opcoes]
+ *   `volumes` e `metodoPagamento` são os metafields `volume_pedido` e
+ *   `metodo_pagamento` do Shopify, crus — quem lê os metafields é a rota do
+ *   preview.
  * @returns {{ payload: object, alertas: string[] }}
  */
 
@@ -144,6 +147,22 @@ export function montarNotaAtacado(pedidoShopify, classificacao, opcoes = {}) {
     alertas.push('Pedido sem itens. Verifique se a leitura do Shopify foi completa.');
   }
 
+  // Forma de pagamento (e, para franquia com boleto, as 3 parcelas) — ver
+  // pagamento.js. As parcelas precisam do total dos itens, por isso isto vem
+  // depois de `itens`. Se a pessoa editar itens na tela do rascunho, o hook
+  // recalcula os valores das parcelas antes de enviar.
+  const totalItens = itens.reduce(
+    (soma, { item }) => soma + Number(item.valor_unitario) * Number(item.quantidade),
+    0
+  );
+  const { pagamento, alertas: alertasPagamento } = montarPagamento({
+    classificacao,
+    metodoPagamento: opcoes.metodoPagamento,
+    dataBaseIso: pedidoShopify.createdAt,
+    total: totalItens,
+  });
+  alertas.push(...alertasPagamento);
+
   const payload =
    {
 
@@ -157,6 +176,8 @@ export function montarNotaAtacado(pedidoShopify, classificacao, opcoes = {}) {
       quantidade_volumes: volumes ?? 1,
       data_emissao: dataBr(pedidoShopify.createdAt),
       numero_pedido_ecommerce: String(pedidoShopify.name ?? '').replace('#', ''),
+      // forma_pagamento (+ parcelas, quando é franquia com boleto).
+      ...pagamento,
       obs: `Pedido vindo do Shopify: ${String(pedidoShopify.name ?? '').replace('#', '')}`,
       cliente: 
       {

@@ -2,6 +2,7 @@
 
 import { useEffect, useState } from 'react';
 import { ITENS_POR_PAGINA } from '@/lib/constants';
+import { recalcularParcelas } from '@/lib/fiscal/pagamento';
 
 /**
  * /pedidos/[id]/rascunho/editar — corrige um rascunho já criado no Tiny.
@@ -79,18 +80,24 @@ export function useEditarRascunho(id) {
     setEnviando(true);
     setErroEnvio(null);
     try {
+      // Idem à tela de inclusão: parcelas (franquia com boleto) são
+      // recalculadas sobre o total corrigido, senão o novo rascunho sairia
+      // com os valores do rascunho antigo.
       const payload = {
-        nota_fiscal: {
-          ...dados.payload.nota_fiscal,
-          cliente: clienteEditado,
-          itens: itensEditados.map((it) => ({
-            item: {
-              ...it,
-              quantidade: Number(it.quantidade || 0),
-              valor_unitario: Number(it.valor_unitario || 0).toFixed(2),
-            },
-          })),
-        },
+        nota_fiscal: recalcularParcelas(
+          {
+            ...dados.payload.nota_fiscal,
+            cliente: clienteEditado,
+            itens: itensEditados.map((it) => ({
+              item: {
+                ...it,
+                quantidade: Number(it.quantidade || 0),
+                valor_unitario: Number(it.valor_unitario || 0).toFixed(2),
+              },
+            })),
+          },
+          totalNota
+        ),
       };
 
       const resposta = await fetch(`/api/pedidos/${id}/rascunho`, {

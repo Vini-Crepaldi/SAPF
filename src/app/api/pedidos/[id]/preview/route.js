@@ -62,6 +62,7 @@ export async function GET(request, { params }) {
     // 3. Nota montada a partir do pedido.
     const { payload, alertas: alertasNota } = montarNotaAtacado(pedido, classificacao, {
       volumes: volumePedido,
+      metodoPagamento: metodoPagamento,
     });
     alertas.push(...alertasNota);
 

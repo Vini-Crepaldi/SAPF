@@ -2,6 +2,7 @@
 
 import { useEffect, useState } from 'react';
 import { ITENS_POR_PAGINA } from '@/lib/constants';
+import { recalcularParcelas } from '@/lib/fiscal/pagamento';
 
 /** /pedidos/[id]/rascunho — grava o rascunho da nota no Tiny pela primeira vez. */
 export function useIncluirRascunho(id) {
@@ -71,18 +72,24 @@ export function useIncluirRascunho(id) {
     setEnviando(true);
     setErroEnvio(null);
     try {
+      // As parcelas (franquia com boleto) foram calculadas sobre o total do
+      // pedido original — se itens foram editados ou removidos aqui, os
+      // valores precisam ser refeitos antes de enviar.
       const payload = {
-        nota_fiscal: {
-          ...dados.payload.nota_fiscal,
-          cliente: clienteEditado,
-          itens: itensEditados.map((it) => ({
-            item: {
-              ...it,
-              quantidade: Number(it.quantidade || 0),
-              valor_unitario: Number(it.valor_unitario || 0).toFixed(2),
-            },
-          })),
-        },
+        nota_fiscal: recalcularParcelas(
+          {
+            ...dados.payload.nota_fiscal,
+            cliente: clienteEditado,
+            itens: itensEditados.map((it) => ({
+              item: {
+                ...it,
+                quantidade: Number(it.quantidade || 0),
+                valor_unitario: Number(it.valor_unitario || 0).toFixed(2),
+              },
+            })),
+          },
+          totalNota
+        ),
       };
 
       const resposta = await fetch(`/api/pedidos/${id}/rascunho`, {
