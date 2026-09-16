@@ -284,6 +284,9 @@ export default function IncluirRascunho({ params }) {
           <strong>Total da nota: {formatarMoeda(totalNota)}</strong>
         </div>
         <div>Frete: {formatarMoeda(dados.pedido.valorFrete)}</div>
+        {/* Desconto do metafield `desconto` do Shopify, já convertido em
+            número e abatido do total pelo Tiny — ver desconto.js. */}
+        <div>Desconto: {formatarMoeda(dados.pedido.valorDesconto ?? 0)}</div>
         <div>Método de pagamento (Shopify): {dados.pedido.metodoPagamento}</div>
         {/* O que vai na nota nem sempre é o que veio do Shopify: franquia com
             boleto vira "múltiplas" com 3 parcelas (ver pagamento.js). */}

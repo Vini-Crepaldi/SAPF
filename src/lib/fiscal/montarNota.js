@@ -7,6 +7,7 @@
 
 import { dataBr, separarLogradouro, somenteDigitos, valorMonetario } from '../utils.js';
 import { extrairCnpj } from './classificacao.js';
+import { CAMPO_DESCONTO_TINY, montarDesconto } from './desconto.js';
 import { extrairIe } from './inscricaoEstadual.js';
 import { montarPagamento } from './pagamento.js';
 import { TRANSPORTE_PADRAO, quantidadeDeVolumes } from './transporte.js';
@@ -14,10 +15,10 @@ import { TRANSPORTE_PADRAO, quantidadeDeVolumes } from './transporte.js';
 /**
  * @param {object} pedidoShopify pedido já completo (com todos os lineItems)
  * @param {"atacado"|"franquia"} classificacao
- * @param {{ volumes?: string|number, metodoPagamento?: string }} [opcoes]
- *   `volumes` e `metodoPagamento` são os metafields `volume_pedido` e
- *   `metodo_pagamento` do Shopify, crus — quem lê os metafields é a rota do
- *   preview.
+ * @param {{ volumes?: string|number, metodoPagamento?: string, desconto?: string|number }} [opcoes]
+ *   `volumes`, `metodoPagamento` e `desconto` são os metafields
+ *   `volume_pedido`, `metodo_pagamento` e `desconto` do Shopify, crus — quem
+ *   lê os metafields é a rota do preview.
  * @returns {{ payload: object, alertas: string[] }}
  */
 
@@ -155,11 +156,21 @@ export function montarNotaAtacado(pedidoShopify, classificacao, opcoes = {}) {
     (soma, { item }) => soma + Number(item.valor_unitario) * Number(item.quantidade),
     0
   );
+  // Desconto em dinheiro do pedido (metafield `desconto`) — abate o total da
+  // nota, por isso vem antes do pagamento: as parcelas da franquia têm que
+  // somar o que o cliente realmente vai pagar, não o total cheio dos itens.
+  const {
+    desconto,
+    valor: valorDesconto,
+    alertas: alertasDesconto,
+  } = montarDesconto({ desconto: opcoes.desconto, total: totalItens });
+  alertas.push(...alertasDesconto);
+
   const { pagamento, alertas: alertasPagamento } = montarPagamento({
     classificacao,
     metodoPagamento: opcoes.metodoPagamento,
     dataBaseIso: pedidoShopify.createdAt,
-    total: totalItens,
+    total: Math.max(0, totalItens - valorDesconto),
   });
   alertas.push(...alertasPagamento);
 
@@ -176,7 +187,10 @@ export function montarNotaAtacado(pedidoShopify, classificacao, opcoes = {}) {
       quantidade_volumes: volumes ?? 1,
       data_emissao: dataBr(pedidoShopify.createdAt),
       numero_pedido_ecommerce: String(pedidoShopify.name ?? '').replace('#', ''),
-      // forma_pagamento (+ parcelas, quando é franquia com boleto).
+      // valor_desconto: só aparece quando há desconto — ver desconto.js.
+      ...desconto,
+      // forma_pagamento só existe quando o pagamento é boleto (+ parcelas,
+      // quando é franquia); nos demais casos não entra nada aqui.
       ...pagamento,
       obs: `Pedido vindo do Shopify: ${String(pedidoShopify.name ?? '').replace('#', '')}`,
       cliente: 
@@ -211,4 +225,9 @@ export function totalDaNota(payload) {
     0
   );
   return Number(total.toFixed(2));
+}
+
+/** Desconto da nota como número, para a tela — campo ausente vira 0. */
+export function descontoDaNota(payload) {
+  return Number(payload?.nota_fiscal?.[CAMPO_DESCONTO_TINY] ?? 0) || 0;
 }

@@ -4,7 +4,7 @@
 
 import { obterPedidoCompleto } from '@/lib/integrations/shopify';
 import { classificarPedido, extrairCnpj } from '@/lib/fiscal/classificacao';
-import { montarNotaAtacado, totalDaNota } from '@/lib/fiscal/montarNota';
+import { descontoDaNota, montarNotaAtacado, totalDaNota } from '@/lib/fiscal/montarNota';
 import { registrarPreview, jaProcessado } from '@/lib/db';
 import { erroJson, paraGid } from '@/lib/utils';
 
@@ -58,11 +58,15 @@ export async function GET(request, { params }) {
 
     const metodoPagamento = getMetafield("metodo_pagamento") || "Não informado";
     const volumePedido = getMetafield("volume_pedido") || "Não informado";
+    // Texto livre ("1200,45", "1.200,45", "R$ 1200.00") — quem converte para
+    // número é desconto.js; aqui o valor segue cru, como os outros metafields.
+    const descontoPedido = getMetafield("desconto");
 
     // 3. Nota montada a partir do pedido.
     const { payload, alertas: alertasNota } = montarNotaAtacado(pedido, classificacao, {
       volumes: volumePedido,
       metodoPagamento: metodoPagamento,
+      desconto: descontoPedido,
     });
     alertas.push(...alertasNota);
 
@@ -103,7 +107,9 @@ export async function GET(request, { params }) {
         cnpj,
         origemCnpj: origem,
         metodoPagamento: metodoPagamento,
-        volumePedido: volumePedido
+        volumePedido: volumePedido,
+        // O que a tela mostra é o desconto que entrou na nota, não o texto cru.
+        valorDesconto: descontoDaNota(payload)
 
       },
       classificacao,
