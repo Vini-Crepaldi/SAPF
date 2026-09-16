@@ -174,6 +174,12 @@ export function montarNotaAtacado(pedidoShopify, classificacao, opcoes = {}) {
   });
   alertas.push(...alertasPagamento);
 
+  // Frete: o que o cliente pagou de frete no Shopify. `valor_frete` é do mesmo
+  // bloco de `valor_desconto` na nota do Tiny (ver desconto.js) e segue a mesma
+  // regra: só entra quando há valor, para a nota não levar campo zerado à toa.
+  const valorFrete = Number(pedidoShopify.currentShippingPriceSet?.shopMoney?.amount ?? 0);
+  const frete = valorFrete > 0 ? { valor_frete: valorMonetario(valorFrete) } : {};
+
   const payload =
    {
 
@@ -182,6 +188,7 @@ export function montarNotaAtacado(pedidoShopify, classificacao, opcoes = {}) {
       tipo: 'S', // S = saída
       natureza_operacao: `Venda para contribuinte`,
       frete_por_conta: 'D',
+      ...frete,
       // Transporte: sempre Correios / Sedex Contrato AG — ver transporte.js.
       ...TRANSPORTE_PADRAO,
       quantidade_volumes: volumes ?? 1,

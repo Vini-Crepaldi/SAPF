@@ -23,7 +23,41 @@
 import { obterPermitirEmissao } from '../db.js';
 import { somenteDigitos } from '../utils.js';
 
-const BASE = () => process.env.TINY_API_BASE || 'https://api.tiny.com.br/api2';
+const BASE_PADRAO = 'https://api.tiny.com.br/api2';
+
+/**
+ * Base da API do Tiny. `TINY_API_BASE` existe só para apontar para outro
+ * ambiente; vazia, cai no padrão.
+ *
+ * A validação aqui não é preciosismo: já aconteceu de o token ser colado
+ * nesta variável no painel do Vercel. Sem checagem, a URL virava
+ * "<token>/nota.fiscal.incluir.php", o fetch estourava com "Failed to parse
+ * URL from ..." e a mensagem — com o token dentro — ia parar na tela do
+ * usuário. Falhamos cedo, dizendo qual variável está errada e sem repetir o
+ * valor dela.
+ */
+function BASE() {
+  const bruta = (process.env.TINY_API_BASE ?? '').trim();
+  if (!bruta) return BASE_PADRAO;
+
+  let url;
+  try {
+    url = new URL(bruta);
+  } catch {
+    throw new Error(
+      'TINY_API_BASE não é uma URL válida (esperado algo como ' +
+        `${BASE_PADRAO}). Corrija a variável de ambiente — confira se o token ` +
+        'não foi colado nela por engano.'
+    );
+  }
+
+  if (url.protocol !== 'https:' && url.protocol !== 'http:') {
+    throw new Error(`TINY_API_BASE precisa começar com https:// (esperado algo como ${BASE_PADRAO}).`);
+  }
+
+  // Sem barra no fim, senão a URL final sai com "//" antes do endpoint.
+  return bruta.replace(/\/+$/, '');
+}
 
 // A API 2.0 do Tiny devolve objeto único (não array) quando só há um item em
 // listas como `registros` ou `erros` — só vira array com dois ou mais.
@@ -52,7 +86,11 @@ async function chamarTiny(endpoint, params= {}) {
       cache: 'no-store',
     });
   } catch (erro) {
-    throw new Error(`Falha de rede ao chamar o Tiny (${endpoint}): ${erro.message}`);
+    // `erro.message` do fetch inclui a URL inteira, e a URL carrega a base —
+    // que, mal configurada, pode conter credencial. O detalhe cru fica no log
+    // do servidor; para cima sobe só o que é seguro mostrar.
+    console.error(`[tiny] falha de rede em ${endpoint}:`, erro);
+    throw new Error(`Falha de rede ao chamar o Tiny (${endpoint}). Veja os logs do servidor para o detalhe.`);
   }
 
   if (!resposta.ok) {
