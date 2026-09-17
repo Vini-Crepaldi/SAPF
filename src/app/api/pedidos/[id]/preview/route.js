@@ -51,10 +51,20 @@ export async function GET(request, { params }) {
     const metafields = await fetchOrderMetafields(id);
     const noteAttributes = pedido.noteAttributes ?? [];
 
-    const getMetafield = (key) =>
-      metafields.find((m) => m.namespace === "custom" && m.key === key)?.value ??
-      noteAttributes.find((attr) => attr.key === key)?.value ??
-      "";
+    // A chave é comparada sem diferenciar maiúsculas: o metafield (e o
+    // atributo do pedido) é cadastrado à mão no Shopify, então a grafia varia.
+    // Com a busca exata, uma chave escrita de outro jeito não casava e o valor
+    // chegava vazio aqui — a nota ia sem forma de pagamento mesmo com boleto.
+    const getMetafield = (key) => {
+      const alvo = key.toLowerCase();
+      return (
+        metafields.find(
+          (m) => m.namespace?.toLowerCase() === "custom" && m.key?.toLowerCase() === alvo,
+        )?.value ??
+        noteAttributes.find((attr) => attr.key?.toLowerCase() === alvo)?.value ??
+        ""
+      );
+    };
 
     const metodoPagamento = getMetafield("metodo_pagamento") || "Não informado";
     const volumePedido = getMetafield("volume_pedido") || "Não informado";
