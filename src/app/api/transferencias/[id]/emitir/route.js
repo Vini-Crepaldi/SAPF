@@ -2,9 +2,10 @@
 //
 // IRREVERSÍVEL. Mesma trava "permitir_emissao" da emissão de pedidos (checada
 // aqui e de novo dentro de emitirNota). Depois de emitir, lê o número da NF
-// no Tiny e grava no Supabase, para a tela mostrar e para a busca por nº.
+// da nota autorizada no Tiny e grava no Supabase, para a tela mostrar e para
+// a busca por nº.
 
-import { emitirNota, obterNota } from '@/lib/integrations/tiny';
+import { emitirNota, obterSituacaoNota } from '@/lib/integrations/tiny';
 import { paraGidTransferencia } from '@/lib/integrations/shopifyTransferencias';
 import { atualizarNotaEmitida, obterPermitirEmissao, registrarNumeroNf, statusPorPedido } from '@/lib/db';
 import { erroJson } from '@/lib/utils';
@@ -40,13 +41,14 @@ export async function POST(request, { params }) {
     console.error(`[transferencia] Nota ${tinyNotaId} emitida no Tiny, mas falhou ao registrar no Supabase:`, registro.erro);
   }
 
-  // Número da NF: a emissão já aconteceu, então falhar aqui só deixa o campo
-  // vazio na tela — não é erro da emissão.
+  // Número da NF, só da nota já autorizada. A autorização na SEFAZ pode
+  // demorar: sem número agora, a tela busca de novo depois
+  // (/api/transferencias/[id]/situacao). Falhar aqui não é erro da emissão.
   let numeroNf = null;
   try {
-    numeroNf = (await obterNota(tinyNotaId))?.numero ?? null;
+    numeroNf = (await obterSituacaoNota(tinyNotaId)).numero;
     if (numeroNf) {
-      await registrarNumeroNf({ orderId: gid, orderName: '', classificacao: 'transferencia', numeroNf });
+      await registrarNumeroNf({ orderId: gid, numeroNf });
     }
   } catch (erro) {
     console.error(`[transferencia] Nota ${tinyNotaId} emitida, mas não foi possível ler o número no Tiny:`, erro);

@@ -124,8 +124,10 @@ pedidos (confirmação na tela e `permitir_emissao`). O registro fica em
   - `base_valor`: `custo` (padrão, `unitCost` do Shopify; sem custo, cai no
     preço de venda e a tela avisa) ou `venda` (preço da variante).
   - `desconto_percentual`: % abatido do valor de cada item (padrão 0).
-- **Nº da NF à mão / "Marcar todas como emitidas":** para transferências cuja
-  nota foi emitida fora do sistema. Só gravam no Supabase, não chamam o Tiny.
+- **Nº da NF:** nunca é digitado — vem da nota autorizada no Tiny. É gravado
+  na emissão e, quando a autorização demora ou a nota é emitida direto no
+  Tiny, a tela confere sozinha as linhas da página aberta
+  (`/api/transferencias/[id]/situacao`); há também o botão "Conferir no Tiny".
 
 ---
 
@@ -160,8 +162,8 @@ src/
     api/config/permitir-emissao/     Liga/desliga a trava de emissão
     transferencias/page.js           Controle de transferências -> features/transferencias
     api/transferencias/              Lista transferências + situação fiscal; subrotas
-                                      [id]/preview, [id]/rascunho, [id]/emitir,
-                                      [id]/numero-nf e marcar-emitidas
+                                      [id]/preview, [id]/rascunho, [id]/emitir
+                                      e [id]/situacao
 
   components/
     layouts/SiteHeader.js            Cabeçalho de navegação

@@ -17,7 +17,7 @@ const STATUS_SHOPIFY = {
   CANCELED: ['Cancelada', 'marca-erro'],
 };
 
-const COLUNAS = 7;
+const COLUNAS = 8;
 
 function StatusShopify({ status }) {
   const [rotulo, classe] = STATUS_SHOPIFY[status] ?? [status, ''];
@@ -141,14 +141,24 @@ export default function ControleTransferencias() {
     alternarProdutos,
     acoes,
     definirAcao,
-    numerosDigitados,
-    setNumerosDigitados,
+    conferindo,
+    precisaConferir,
+    conferirNoTiny,
     criarRascunho,
     emitir,
-    salvarNumero,
-    marcandoTodas,
-    marcarTodasComoEmitidas,
+    emitirDireto,
+    podeEmitir,
+    selecionadas,
+    alternarSelecao,
+    selecionarVarias,
+    comRascunho,
+    selecionadasEmitiveis,
+    lote,
+    emitirTodasComRascunho,
+    emitirSelecionadas,
   } = useTransferencias();
+
+  const emitiveisDaPagina = transferenciasDaPagina.filter(podeEmitir).map((t) => t.id);
 
   return (
     <>
@@ -232,14 +242,33 @@ export default function ControleTransferencias() {
             Limpar filtros
           </button>
           <button
-            className="secundario"
-            onClick={marcarTodasComoEmitidas}
-            disabled={carregando || marcandoTodas || !transferencias?.some((t) => !t.notaEmitida)}
-            title="Para transferências cuja nota foi emitida fora do sistema — não chama o Tiny"
+            onClick={emitirTodasComRascunho}
+            disabled={!permitirEmissao || carregando || !!lote || comRascunho.length === 0}
+            title={
+              permitirEmissao
+                ? 'Emite no Tiny todas as notas com rascunho da lista filtrada (todas as páginas)'
+                : 'Ligue "Permitir emissão" na tela de rascunhos'
+            }
           >
-            {marcandoTodas ? 'Marcando…' : 'Marcar todas como emitidas'}
+            Emitir todas com rascunho ({comRascunho.length})
+          </button>
+          <button
+            onClick={emitirSelecionadas}
+            disabled={!permitirEmissao || carregando || !!lote || selecionadasEmitiveis.length === 0}
+            title={
+              permitirEmissao
+                ? 'Cria o rascunho quando falta e emite as transferências marcadas'
+                : 'Ligue "Permitir emissão" na tela de rascunhos'
+            }
+          >
+            Emitir selecionadas ({selecionadasEmitiveis.length})
           </button>
         </div>
+        {lote && (
+          <p className="fraco" style={{ marginBottom: 0 }}>
+            Emitindo {lote.feitas}/{lote.total}… não feche a página.
+          </p>
+        )}
       </div>
 
       <div className={permitirEmissao ? 'aviso aviso-ok' : 'aviso'}>
@@ -288,6 +317,15 @@ export default function ControleTransferencias() {
           <table>
             <thead>
               <tr>
+                <th>
+                  <input
+                    type="checkbox"
+                    aria-label="Selecionar as transferências emitíveis desta página"
+                    checked={emitiveisDaPagina.length > 0 && emitiveisDaPagina.every((id) => selecionadas.has(id))}
+                    disabled={emitiveisDaPagina.length === 0 || !!lote}
+                    onChange={(e) => selecionarVarias(emitiveisDaPagina, e.target.checked)}
+                  />
+                </th>
                 <th>Transferência</th>
                 <th>Origem</th>
                 <th>Destino</th>
@@ -304,11 +342,21 @@ export default function ControleTransferencias() {
                 const enviando = acao?.fase === 'enviando';
                 const temRascunho = t.situacaoFiscal === 'rascunho_criado';
                 const podeCriar = !t.notaEmitida && !temRascunho && t.status !== 'CANCELED';
-                const numero = numerosDigitados[t.id] ?? '';
 
                 return (
                   <Fragment key={t.id}>
                     <tr>
+                      <td>
+                        {podeEmitir(t) && (
+                          <input
+                            type="checkbox"
+                            aria-label={`Selecionar a transferência ${t.name}`}
+                            checked={selecionadas.has(t.id)}
+                            disabled={!!lote}
+                            onChange={() => alternarSelecao(t.id)}
+                          />
+                        )}
+                      </td>
                       <td className="mono">{t.name}</td>
                       <td>{t.origem}</td>
                       <td>{t.destino}</td>
@@ -336,10 +384,24 @@ export default function ControleTransferencias() {
                             </button>
                           )}
 
+                          {podeCriar && (
+                            <button
+                              onClick={() => definirAcao(t.id, { fase: 'confirmar-emissao-direta' })}
+                              disabled={!permitirEmissao || enviando || !!lote || acao?.fase === 'confirmar-emissao-direta'}
+                              title={
+                                permitirEmissao
+                                  ? 'Cria o rascunho no Tiny e emite em seguida'
+                                  : 'Ligue "Permitir emissão" na tela de rascunhos'
+                              }
+                            >
+                              {permitirEmissao ? 'Emitir nota' : 'Emissão bloqueada'}
+                            </button>
+                          )}
+
                           {temRascunho && !t.notaEmitida && (
                             <button
                               onClick={() => definirAcao(t.id, { fase: 'confirmar-emissao' })}
-                              disabled={!permitirEmissao || enviando || acao?.fase === 'confirmar-emissao'}
+                              disabled={!permitirEmissao || enviando || !!lote || acao?.fase === 'confirmar-emissao'}
                               title={permitirEmissao ? undefined : 'Ligue "Permitir emissão" na tela de rascunhos'}
                             >
                               {permitirEmissao ? 'Emitir nota' : 'Emissão bloqueada'}
@@ -358,27 +420,15 @@ export default function ControleTransferencias() {
                             </a>
                           )}
 
-                          {!t.notaEmitida && (
-                            <div style={{ display: 'flex', gap: '0.4rem' }}>
-                              <input
-                                inputMode="numeric"
-                                placeholder="Nº da NF"
-                                aria-label={`Número da NF da transferência ${t.name}`}
-                                value={numero}
-                                style={{ width: '8rem' }}
-                                onChange={(e) =>
-                                  setNumerosDigitados((atual) => ({ ...atual, [t.id]: e.target.value.replace(/\D+/g, '') }))
-                                }
-                              />
-                              <button
-                                className="secundario"
-                                onClick={() => salvarNumero(t)}
-                                disabled={!numero || enviando}
-                                title="Para nota emitida fora do sistema — não chama o Tiny"
-                              >
-                                Salvar nº
-                              </button>
-                            </div>
+                          {precisaConferir(t) && (
+                            <button
+                              className="secundario"
+                              onClick={() => conferirNoTiny(t)}
+                              disabled={conferindo.has(t.id) || enviando}
+                              title="Busca no Tiny se a nota já foi autorizada e o número da NF"
+                            >
+                              {conferindo.has(t.id) ? 'Conferindo no Tiny…' : 'Conferir no Tiny'}
+                            </button>
                           )}
                         </div>
                       </td>
@@ -414,6 +464,26 @@ export default function ControleTransferencias() {
                             </p>
                             <div style={{ display: 'flex', gap: '0.75rem' }}>
                               <button onClick={() => emitir(t)}>Sim, emitir</button>
+                              <button className="secundario" onClick={() => definirAcao(t.id, null)}>
+                                Cancelar
+                              </button>
+                            </div>
+                          </div>
+                        </td>
+                      </tr>
+                    )}
+
+                    {acao?.fase === 'confirmar-emissao-direta' && (
+                      <tr>
+                        <td colSpan={COLUNAS}>
+                          <div className="confirmacao">
+                            <p style={{ marginTop: 0 }}>
+                              <strong>Criar o rascunho e emitir a nota da transferência {t.name}?</strong> Isso
+                              grava a nota no Tiny de produção e dá valor fiscal real — é irreversível. Confira os
+                              produtos e os avisos em &quot;Ver produtos&quot; antes.
+                            </p>
+                            <div style={{ display: 'flex', gap: '0.75rem' }}>
+                              <button onClick={() => emitirDireto(t)}>Sim, criar e emitir</button>
                               <button className="secundario" onClick={() => definirAcao(t.id, null)}>
                                 Cancelar
                               </button>

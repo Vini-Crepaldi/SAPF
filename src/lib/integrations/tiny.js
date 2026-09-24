@@ -166,6 +166,18 @@ function notaEstaEmitida(notaTiny) {
   return /emitid|autorizad/.test(situacao) && !/cancelad/.test(situacao);
 }
 
+/**
+ * Situação da nota no Tiny: se já foi emitida (autorizada) e, nesse caso, o
+ * número da NF. O número só é devolvido para nota autorizada — o de um
+ * rascunho não é o número fiscal definitivo.
+ */
+export async function obterSituacaoNota(id) {
+  const nota = await obterNota(id);
+  const emitida = notaEstaEmitida(nota);
+  const numero = emitida && nota?.numero ? String(nota.numero) : null;
+  return { emitida, numero, situacao: nota?.situacao ?? null };
+}
+
 /** Consulta o Tiny e diz se a nota já foi emitida (não só criada como rascunho). */
 export async function verificarNotaEmitida(id) {
   const nota = await obterNota(id);

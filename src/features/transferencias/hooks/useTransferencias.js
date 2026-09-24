@@ -1,6 +1,6 @@
 'use client';
 
-import { useCallback, useEffect, useState } from 'react';
+import { useCallback, useEffect, useRef, useState } from 'react';
 import { ITENS_POR_PAGINA } from '@/lib/constants';
 
 export const FILTROS_VAZIOS = {
@@ -34,7 +34,15 @@ async function lerJson(resposta, mensagemPadrao) {
  *
  * Por linha há três estados independentes: os produtos (preview da nota,
  * carregado sob demanda), a ação em andamento (rascunho/emissão, sempre com
- * confirmação antes) e o nº da NF digitado à mão.
+ * confirmação antes) e a conferência da nota no Tiny.
+ *
+ * O nº da NF nunca é digitado: vem da nota autorizada no Tiny. Toda linha da
+ * página aberta que tem nota no Tiny mas ainda não tem número é conferida
+ * sozinha, uma por vez (a API do Tiny tem limite de chamadas por minuto).
+ *
+ * A emissão em lote (todas com rascunho, ou as selecionadas) roda uma
+ * transferência por vez e reaproveita o estado de ação da linha: a que falha
+ * mostra o erro nela mesma, e o lote segue para a próxima.
  */
 export function useTransferencias() {
   const [filtros, setFiltros] = useState(FILTROS_VAZIOS);
@@ -48,12 +56,17 @@ export function useTransferencias() {
 
   // { [id]: { aberto, carregando, dados?, erro? } }
   const [produtos, setProdutos] = useState({});
-  // { [id]: { fase: 'confirmar-rascunho'|'confirmar-emissao'|'enviando'|'erro', erro? } }
+  // { [id]: { fase: 'confirmar-rascunho'|'confirmar-emissao'|'confirmar-emissao-direta'|'enviando'|'erro', erro? } }
   const [acoes, setAcoes] = useState({});
-  // { [id]: string }
-  const [numerosDigitados, setNumerosDigitados] = useState({});
-  const [marcandoTodas, setMarcandoTodas] = useState(false);
+  // ids com conferência no Tiny em andamento
+  const [conferindo, setConferindo] = useState(() => new Set());
+  // ids já conferidos automaticamente nesta carga — não repete a cada render.
+  const conferidos = useRef(new Set());
   const [pagina, setPagina] = useState(1);
+  // ids marcados para "Emitir selecionadas" — vale entre páginas.
+  const [selecionadas, setSelecionadas] = useState(() => new Set());
+  // { feitas, total } enquanto um lote de emissão roda.
+  const [lote, setLote] = useState(null);
 
   const carregar = useCallback(async (f) => {
     setCarregando(true);
@@ -61,8 +74,10 @@ export function useTransferencias() {
     try {
       const corpo = await lerJson(await fetch(`/api/transferencias?${paraQuery(f)}`), 'Falha ao carregar');
       setTransferencias(corpo.transferencias);
+      conferidos.current = new Set();
       // Filtro novo, lista nova: a página antiga pode nem existir mais.
       setPagina(1);
+      setSelecionadas(new Set());
       setLocais(corpo.locais);
       setTruncado(corpo.truncado);
     } catch (e) {
@@ -130,101 +145,159 @@ export function useTransferencias() {
     }
   }
 
-  async function criarRascunho(t) {
+  async function enviarRascunho(t) {
+    const corpo = await lerJson(
+      await fetch(`/api/transferencias/${t.id}/rascunho`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ confirmacaoTeste: true }),
+      }),
+      'O Tiny recusou a inclusão.'
+    );
+    atualizarLinha(t.id, { situacaoFiscal: 'rascunho_criado', tinyNotaId: corpo.tinyNotaId });
+    return corpo;
+  }
+
+  async function enviarEmissao(t) {
+    const corpo = await lerJson(
+      await fetch(`/api/transferencias/${t.id}/emitir`, { method: 'POST' }),
+      'O Tiny recusou a emissão.'
+    );
+    atualizarLinha(t.id, { notaEmitida: true, numeroNf: corpo.numeroNf ?? t.numeroNf });
+    return corpo;
+  }
+
+  // Cria o rascunho quando ainda não existe e emite. Se o rascunho sair e a
+  // emissão falhar, a linha já fica como "rascunho criado" para tentar de novo.
+  async function rascunhoEEmissao(t) {
+    if (t.situacaoFiscal !== 'rascunho_criado') await enviarRascunho(t);
+    return enviarEmissao(t);
+  }
+
+  async function executarNaLinha(t, operacao, aoConcluir) {
     definirAcao(t.id, { fase: 'enviando' });
     try {
-      const corpo = await lerJson(
-        await fetch(`/api/transferencias/${t.id}/rascunho`, {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ confirmacaoTeste: true }),
-        }),
-        'O Tiny recusou a inclusão.'
-      );
-      atualizarLinha(t.id, { situacaoFiscal: 'rascunho_criado', tinyNotaId: corpo.tinyNotaId });
+      const corpo = await operacao(t);
       definirAcao(t.id, null);
-      setAviso(corpo.mensagem);
+      aoConcluir?.(corpo);
+      return true;
     } catch (e) {
       definirAcao(t.id, { fase: 'erro', erro: e.message });
+      return false;
     }
   }
 
-  async function emitir(t) {
-    definirAcao(t.id, { fase: 'enviando' });
-    try {
-      const corpo = await lerJson(
-        await fetch(`/api/transferencias/${t.id}/emitir`, { method: 'POST' }),
-        'O Tiny recusou a emissão.'
-      );
-      atualizarLinha(t.id, { notaEmitida: true, numeroNf: corpo.numeroNf ?? t.numeroNf });
-      definirAcao(t.id, null);
-    } catch (e) {
-      definirAcao(t.id, { fase: 'erro', erro: e.message });
-    }
+  function criarRascunho(t) {
+    return executarNaLinha(t, enviarRascunho, (corpo) => setAviso(corpo.mensagem));
   }
 
-  async function salvarNumero(t) {
-    const numeroNf = (numerosDigitados[t.id] ?? '').trim();
-    definirAcao(t.id, { fase: 'enviando' });
-    try {
-      await lerJson(
-        await fetch(`/api/transferencias/${t.id}/numero-nf`, {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ numeroNf, nome: t.name }),
-        }),
-        'Falha ao salvar o número.'
-      );
-      atualizarLinha(t.id, { notaEmitida: true, numeroNf });
-      setNumerosDigitados((atual) => ({ ...atual, [t.id]: '' }));
-      definirAcao(t.id, null);
-    } catch (e) {
-      definirAcao(t.id, { fase: 'erro', erro: e.message });
-    }
+  function emitir(t) {
+    return executarNaLinha(t, enviarEmissao);
   }
 
-  async function marcarTodasComoEmitidas() {
-    const pendentes = (transferencias ?? []).filter((t) => !t.notaEmitida);
-    if (pendentes.length === 0) return;
+  function emitirDireto(t) {
+    return executarNaLinha(t, rascunhoEEmissao, (corpo) =>
+      setAviso(`Nota da transferência ${t.name} emitida${corpo.numeroNf ? ` — NF nº ${corpo.numeroNf}` : ''}.`)
+    );
+  }
+
+  const podeEmitir = (t) => !t.notaEmitida && t.status !== 'CANCELED';
+  const comRascunho = (transferencias ?? []).filter((t) => podeEmitir(t) && t.situacaoFiscal === 'rascunho_criado');
+  const selecionadasEmitiveis = (transferencias ?? []).filter((t) => podeEmitir(t) && selecionadas.has(t.id));
+
+  function alternarSelecao(id) {
+    setSelecionadas((atual) => {
+      const nova = new Set(atual);
+      if (nova.has(id)) nova.delete(id);
+      else nova.add(id);
+      return nova;
+    });
+  }
+
+  function selecionarVarias(ids, marcar) {
+    setSelecionadas((atual) => {
+      const nova = new Set(atual);
+      for (const id of ids) {
+        if (marcar) nova.add(id);
+        else nova.delete(id);
+      }
+      return nova;
+    });
+  }
+
+  async function emitirEmLote(lista, descricao) {
+    if (lista.length === 0 || lote) return;
+    const semRascunho = lista.filter((t) => t.situacaoFiscal !== 'rascunho_criado').length;
     const confirmou = window.confirm(
-      `Marcar ${pendentes.length} transferência(s) da lista filtrada (todas as páginas) como emitidas? Isto NÃO emite nada no Tiny — ` +
-        'só tira da lista de pendentes as que já tiveram nota emitida fora do sistema. ' +
-        'As que têm rascunho aberto no Tiny ficam de fora.'
+      `Emitir ${lista.length} nota(s) de ${descricao}? Isso dá valor fiscal real no Tiny e é irreversível.` +
+        (semRascunho ? ` ${semRascunho} delas ainda não têm rascunho — ele será criado antes de emitir.` : '')
     );
     if (!confirmou) return;
 
-    setMarcandoTodas(true);
     setErro(null);
+    setLote({ feitas: 0, total: lista.length });
+    const falhas = [];
+    for (const [i, t] of lista.entries()) {
+      if (await executarNaLinha(t, rascunhoEEmissao)) selecionarVarias([t.id], false);
+      else falhas.push(t.name);
+      setLote({ feitas: i + 1, total: lista.length });
+    }
+    setLote(null);
+    const emitidas = lista.length - falhas.length;
+    setAviso(
+      `${emitidas} nota(s) emitida(s).` +
+        (falhas.length ? ` Falharam ${falhas.length}: ${falhas.join(', ')} — veja o erro em cada linha.` : '')
+    );
+  }
+
+  function emitirTodasComRascunho() {
+    return emitirEmLote(comRascunho, 'transferências com rascunho da lista filtrada (todas as páginas)');
+  }
+
+  function emitirSelecionadas() {
+    return emitirEmLote(selecionadasEmitiveis, 'transferências selecionadas');
+  }
+
+  const precisaConferir = (t) => !!t.tinyNotaId && (!t.notaEmitida || !t.numeroNf);
+
+  async function conferirNoTiny(t) {
+    setConferindo((atual) => new Set(atual).add(t.id));
     try {
       const corpo = await lerJson(
-        await fetch('/api/transferencias/marcar-emitidas', {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({
-            confirmacao: true,
-            transferencias: pendentes.map((t) => ({ id: t.id, nome: t.name })),
-          }),
-        }),
-        'Falha ao marcar as transferências.'
+        await fetch(`/api/transferencias/${t.id}/situacao`),
+        'Falha ao consultar a nota no Tiny.'
       );
-      const marcadas = new Set(corpo.marcadas);
-      setTransferencias((atual) => atual.map((t) => (marcadas.has(t.id) ? { ...t, notaEmitida: true } : t)));
-      setAviso(
-        `${corpo.marcadas.length} transferência(s) marcada(s) como emitidas.` +
-          (corpo.ignoradas.length
-            ? ` Ficaram de fora por terem rascunho no Tiny: ${corpo.ignoradas.join(', ')}.`
-            : '')
-      );
+      atualizarLinha(t.id, { notaEmitida: corpo.notaEmitida || t.notaEmitida, numeroNf: corpo.numeroNf ?? t.numeroNf });
     } catch (e) {
-      setErro(e.message);
+      definirAcao(t.id, { fase: 'erro', erro: e.message });
     } finally {
-      setMarcandoTodas(false);
+      setConferindo((atual) => {
+        const nova = new Set(atual);
+        nova.delete(t.id);
+        return nova;
+      });
     }
   }
 
   const totalPaginas = Math.max(1, Math.ceil((transferencias?.length ?? 0) / ITENS_POR_PAGINA));
   const inicio = (pagina - 1) * ITENS_POR_PAGINA;
   const transferenciasDaPagina = (transferencias ?? []).slice(inicio, inicio + ITENS_POR_PAGINA);
+
+  const idsParaConferir = transferenciasDaPagina
+    .filter((t) => precisaConferir(t) && !conferidos.current.has(t.id))
+    .map((t) => t.id)
+    .join(',');
+
+  useEffect(() => {
+    if (!idsParaConferir) return;
+    const pendentes = transferenciasDaPagina.filter((t) => idsParaConferir.split(',').includes(t.id));
+    for (const t of pendentes) conferidos.current.add(t.id);
+    (async () => {
+      for (const t of pendentes) await conferirNoTiny(t);
+    })();
+    // Só dispara quando muda o conjunto de linhas a conferir, não a cada render.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [idsParaConferir]);
 
   function mudarPagina(nova) {
     setPagina(nova);
@@ -253,12 +326,20 @@ export function useTransferencias() {
     alternarProdutos,
     acoes,
     definirAcao,
-    numerosDigitados,
-    setNumerosDigitados,
+    conferindo,
+    precisaConferir,
+    conferirNoTiny,
     criarRascunho,
     emitir,
-    salvarNumero,
-    marcandoTodas,
-    marcarTodasComoEmitidas,
+    emitirDireto,
+    podeEmitir,
+    selecionadas,
+    alternarSelecao,
+    selecionarVarias,
+    comRascunho,
+    selecionadasEmitiveis,
+    lote,
+    emitirTodasComRascunho,
+    emitirSelecionadas,
   };
 }

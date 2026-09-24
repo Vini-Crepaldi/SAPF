@@ -287,41 +287,18 @@ export async function verificarSupabase() {
 }
 
 /**
- * Grava o número da NF de uma nota já emitida. Serve aos dois casos da tela de
- * transferências: o número que o Tiny devolve depois da emissão, e o número
- * digitado à mão para uma nota emitida fora deste sistema — nesse segundo caso
- * a linha pode ainda não existir, por isso é upsert. `numeroNf` vazio só marca
- * como emitida ("Marcar todas como emitidas").
+ * Marca a nota como emitida e grava o número da NF que o Tiny devolveu para a
+ * nota autorizada. Só atualiza: a linha já existe desde a criação do
+ * rascunho, e nome, status e payload ficam como estão.
  */
-export async function registrarNumeroNf({ orderId, orderName, classificacao, numeroNf }) {
+export async function registrarNumeroNf({ orderId, numeroNf }) {
   const db = obterCliente();
   if (!db) return SEM_CONFIG;
 
-  const { data: atual, error: erroLeitura } = await db
+  const { error } = await db
     .from('notas_processadas')
-    .select('id')
-    .eq('shopify_order_id', orderId)
-    .maybeSingle();
-  if (erroLeitura) return { ok: false, erro: erroLeitura.message };
-
-  const mudanca = {
-    nota_emitida: true,
-    // Sem número (marcação em lote), o que já estiver gravado fica.
-    ...(numeroNf ? { numero_nf: String(numeroNf) } : {}),
-    atualizado_em: new Date().toISOString(),
-  };
-
-  // Linha existente: só a emissão muda — nome, status e payload ficam como estão.
-  const { error } = atual
-    ? await db.from('notas_processadas').update(mudanca).eq('shopify_order_id', orderId)
-    : await db.from('notas_processadas').insert({
-        shopify_order_id: orderId,
-        shopify_order_name: orderName,
-        classificacao,
-        // Nota emitida fora daqui: não existe rascunho no Tiny.
-        status: 'emitida_fora',
-        ...mudanca,
-      });
+    .update({ nota_emitida: true, numero_nf: String(numeroNf), atualizado_em: new Date().toISOString() })
+    .eq('shopify_order_id', orderId);
 
   return error ? { ok: false, erro: error.message } : { ok: true };
 }
