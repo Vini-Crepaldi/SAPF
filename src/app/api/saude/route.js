@@ -2,6 +2,7 @@
 // É a primeira tela a consultar quando algo não funciona.
 
 import { verificarShopify } from '@/lib/integrations/shopify';
+import { verificarShopifyTransferencias } from '@/lib/integrations/shopifyTransferencias';
 import { verificarTiny } from '@/lib/integrations/tiny';
 import { verificarSupabase, obterPermitirEmissao } from '@/lib/db';
 
@@ -20,6 +21,7 @@ export async function GET() {
   const [servicos, permitirEmissao] = await Promise.all([
     Promise.all([
       checar('Shopify', verificarShopify),
+      checar('Shopify (transferências)', verificarShopifyTransferencias),
       checar('Tiny', verificarTiny),
       checar('Supabase', verificarSupabase),
     ]),

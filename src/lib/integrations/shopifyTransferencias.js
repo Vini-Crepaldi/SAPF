@@ -1,0 +1,151 @@
+// shopifyTransferencias.js — transferências de estoque entre lojas (Admin
+// GraphQL API, `inventoryTransfers`).
+//
+// Estas leituras usam o token de OUTRO app do Shopify, não o de pedidos: é o
+// app que já tem os escopos de transferência (read_inventory_transfers,
+// read_locations, read_inventory, read_products). Só o token é próprio
+// (SHOPIFY_TRANSFERENCIAS_TOKEN); domínio e versão são os mesmos do app de
+// pedidos (SHOPIFY_STORE_DOMAIN e SHOPIFY_API_VERSION), já que a loja é a mesma.
+
+import { idNumerico } from '../utils.js';
+import { shopifyGraphQL } from './shopify.js';
+
+function credenciais() {
+  const token = process.env.SHOPIFY_TRANSFERENCIAS_TOKEN;
+  if (!token) {
+    throw new Error('SHOPIFY_TRANSFERENCIAS_TOKEN não configurado (token do app de transferências do Shopify).');
+  }
+  // Domínio e versão ficam de fora: shopifyGraphQL usa os do .env.
+  return { token };
+}
+
+/** Aceita "123" ou o gid completo e sempre devolve o gid da transferência. */
+export function paraGidTransferencia(id) {
+  const texto = String(id ?? '');
+  if (texto.startsWith('gid://')) return texto;
+  return `gid://shopify/InventoryTransfer/${texto}`;
+}
+
+const QUERY_TRANSFERENCIAS = `
+query Transferencias($first: Int!, $after: String, $query: String) {
+  inventoryTransfers(first: $first, after: $after, query: $query, reverse: true, sortKey: CREATED_AT) {
+    pageInfo { hasNextPage endCursor }
+    nodes {
+      id name referenceName dateCreated status note totalQuantity receivedQuantity
+      origin { name location { id } }
+      destination { name location { id } }
+    }
+  }
+}`;
+
+const QUERY_LOCAIS = `
+query Locais {
+  locations(first: 250, includeInactive: true) { nodes { id name isActive } }
+}`;
+
+const QUERY_TRANSFERENCIA_COMPLETA = `
+query Transferencia($id: ID!, $cursor: String) {
+  inventoryTransfer(id: $id) {
+    id name referenceName dateCreated status note totalQuantity receivedQuantity
+    origin { name address { address1 address2 city provinceCode zip } location { id } }
+    destination { name address { address1 address2 city provinceCode zip } location { id } }
+    lineItems(first: 100, after: $cursor) {
+      pageInfo { hasNextPage endCursor }
+      nodes {
+        title totalQuantity shippedQuantity
+        inventoryItem {
+          sku
+          unitCost { amount }
+          variants(first: 1) { nodes { price barcode displayName } }
+        }
+      }
+    }
+  }
+}`;
+
+/** Teto de páginas por consulta — 4 x 250 = 1000 transferências. */
+const MAX_PAGINAS = 4;
+
+/**
+ * Monta a busca do Shopify a partir dos filtros da tela. O que o Shopify sabe
+ * filtrar vai para cá; "excluir loja", nº da NF e "só não emitidas" dependem
+ * do Supabase e ficam para a rota.
+ */
+function montarBusca({ origemId, destinoId, dataInicial, dataFinal, mostrarRascunhos }) {
+  const termos = [];
+  if (origemId) termos.push(`origin_id:${idNumerico(origemId)}`);
+  if (destinoId) termos.push(`destination_id:${idNumerico(destinoId)}`);
+  if (dataInicial) termos.push(`created_at:>=${dataInicial}`);
+  // `<=` com só a data corta o dia no meio-dia UTC; "menor que o dia seguinte" pega o dia inteiro.
+  if (dataFinal) {
+    const seguinte = new Date(`${dataFinal}T00:00:00Z`);
+    seguinte.setUTCDate(seguinte.getUTCDate() + 1);
+    termos.push(`created_at:<${seguinte.toISOString().slice(0, 10)}`);
+  }
+  if (!mostrarRascunhos) termos.push('-status:draft');
+  return termos.join(' AND ') || null;
+}
+
+/** Lista de transferências para a tela /transferencias, mais recentes primeiro. */
+export async function listarTransferencias(filtros = {}) {
+  const query = montarBusca(filtros);
+  const transferencias = [];
+  let after = null;
+  let paginas = 0;
+  let truncado = false;
+
+  while (true) {
+    const dados = await shopifyGraphQL(QUERY_TRANSFERENCIAS, { first: 250, after, query }, credenciais());
+    const conexao = dados.inventoryTransfers;
+    transferencias.push(...(conexao?.nodes ?? []));
+    paginas += 1;
+    if (!conexao?.pageInfo?.hasNextPage) break;
+    if (paginas >= MAX_PAGINAS) {
+      truncado = true;
+      break;
+    }
+    after = conexao.pageInfo.endCursor;
+  }
+
+  // O filtro `-status:draft` do Shopify é a primeira barreira; esta é a
+  // garantia, caso a busca ignore o termo.
+  const lista = filtros.mostrarRascunhos ? transferencias : transferencias.filter((t) => t.status !== 'DRAFT');
+
+  return { transferencias: lista, truncado };
+}
+
+/** Locais (lojas) do Shopify, para os filtros de origem/destino/exclusão. */
+export async function listarLocais() {
+  const dados = await shopifyGraphQL(QUERY_LOCAIS, {}, credenciais());
+  return (dados.locations?.nodes ?? []).sort((a, b) => a.name.localeCompare(b.name, 'pt-BR'));
+}
+
+/** Transferência completa, com TODOS os itens (pagina `lineItems` até o fim). */
+export async function obterTransferenciaCompleta(id) {
+  const gid = paraGidTransferencia(id);
+  const itens = [];
+  let cursor = null;
+  let transferencia = null;
+  let temProximaPagina = true;
+
+  while (temProximaPagina) {
+    const dados = await shopifyGraphQL(QUERY_TRANSFERENCIA_COMPLETA, { id: gid, cursor }, credenciais());
+    if (!dados.inventoryTransfer) throw new Error(`Transferência ${gid} não encontrada no Shopify.`);
+    transferencia = dados.inventoryTransfer;
+    itens.push(...transferencia.lineItems.nodes);
+    temProximaPagina = transferencia.lineItems.pageInfo.hasNextPage;
+    cursor = transferencia.lineItems.pageInfo.endCursor;
+  }
+
+  return { ...transferencia, lineItems: itens };
+}
+
+/** Ping usado pelo /api/saude. */
+export async function verificarShopifyTransferencias() {
+  const locais = await listarLocais();
+  return {
+    servico: 'Shopify (transferências)',
+    ok: true,
+    detalhe: `Token do app de transferências aceito. ${locais.length} local(is) encontrado(s).`,
+  };
+}

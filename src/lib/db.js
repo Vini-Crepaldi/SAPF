@@ -85,6 +85,7 @@ export async function registrarRascunhoCriado({
     resposta_tiny: respostaTiny ?? null,
     erro: null,
     atualizado_em: new Date().toISOString(),
+    ...(notasSubstituidas ? { tiny_notas_substituidas: notasSubstituidas } : {}),
   };
 
   const { data, error } = await db
@@ -107,7 +108,7 @@ export async function obterRascunhoCriado(orderId) {
   const { data, error } = await db
     .from('notas_processadas')
     .select(
-      'shopify_order_name, classificacao, status, tiny_nota_id, nota_emitida, payload_enviado'
+      'shopify_order_name, classificacao, status, tiny_nota_id, nota_emitida, payload_enviado, tiny_notas_substituidas'
     )
     .eq('shopify_order_id', orderId)
     .maybeSingle();
@@ -191,14 +192,14 @@ export async function salvarItensPendentes(orderName, pendencias) {
   return error ? { ok: false, erro: error.message } : { ok: true, gravados: linhas.length };
 }
 
-/** Mapa orderId -> status, usado pela lista de pedidos. */
+/** Mapa orderId -> status, usado pela lista de pedidos e pela de transferências. */
 export async function statusPorPedido(orderIds) {
   const db = obterCliente();
   if (!db) return {};
 
   const { data, error } = await db
     .from('notas_processadas')
-    .select('shopify_order_id, status, tiny_nota_id, nota_emitida')
+    .select('shopify_order_id, status, tiny_nota_id, nota_emitida, numero_nf')
     .in('shopify_order_id', orderIds);
 
   if (error || !data) return {};
@@ -239,9 +240,12 @@ export async function listarRascunhosCriados({ limite = 50 } = {}) {
   const { data, error } = await db
     .from('notas_processadas')
     .select(
-      'shopify_order_id, shopify_order_name, classificacao, tiny_nota_id, nota_emitida, payload_enviado, criado_em, atualizado_em'
+      'shopify_order_id, shopify_order_name, classificacao, tiny_nota_id, nota_emitida, payload_enviado, tiny_notas_substituidas, criado_em, atualizado_em'
     )
     .eq('status', 'rascunho_criado')
+    // Transferências têm tela própria (/transferencias) e ids de outro tipo —
+    // os links desta lista só sabem abrir pedido.
+    .neq('classificacao', 'transferencia')
     .order('atualizado_em', { ascending: false })
     .limit(limite);
 
@@ -280,4 +284,57 @@ export async function verificarSupabase() {
     };
   }
   return { servico: 'Supabase', ok: true, detalhe: 'Conectado e tabelas acessíveis.' };
+}
+
+/**
+ * Grava o número da NF de uma nota já emitida. Serve aos dois casos da tela de
+ * transferências: o número que o Tiny devolve depois da emissão, e o número
+ * digitado à mão para uma nota emitida fora deste sistema — nesse segundo caso
+ * a linha pode ainda não existir, por isso é upsert. `numeroNf` vazio só marca
+ * como emitida ("Marcar todas como emitidas").
+ */
+export async function registrarNumeroNf({ orderId, orderName, classificacao, numeroNf }) {
+  const db = obterCliente();
+  if (!db) return SEM_CONFIG;
+
+  const { data: atual, error: erroLeitura } = await db
+    .from('notas_processadas')
+    .select('id')
+    .eq('shopify_order_id', orderId)
+    .maybeSingle();
+  if (erroLeitura) return { ok: false, erro: erroLeitura.message };
+
+  const mudanca = {
+    nota_emitida: true,
+    // Sem número (marcação em lote), o que já estiver gravado fica.
+    ...(numeroNf ? { numero_nf: String(numeroNf) } : {}),
+    atualizado_em: new Date().toISOString(),
+  };
+
+  // Linha existente: só a emissão muda — nome, status e payload ficam como estão.
+  const { error } = atual
+    ? await db.from('notas_processadas').update(mudanca).eq('shopify_order_id', orderId)
+    : await db.from('notas_processadas').insert({
+        shopify_order_id: orderId,
+        shopify_order_name: orderName,
+        classificacao,
+        // Nota emitida fora daqui: não existe rascunho no Tiny.
+        status: 'emitida_fora',
+        ...mudanca,
+      });
+
+  return error ? { ok: false, erro: error.message } : { ok: true };
+}
+
+/** Cadastro fiscal das lojas, indexado pelo gid do local no Shopify. */
+export async function lojasFiscaisPorLocal(locationIds) {
+  const db = obterCliente();
+  if (!db) return { ok: false, erro: SEM_CONFIG.erro, lojas: {} };
+
+  const ids = locationIds.filter(Boolean);
+  if (!ids.length) return { ok: true, lojas: {} };
+
+  const { data, error } = await db.from('lojas_fiscais').select('*').in('shopify_location_id', ids);
+  if (error) return { ok: false, erro: error.message, lojas: {} };
+  return { ok: true, lojas: Object.fromEntries((data ?? []).map((l) => [l.shopify_location_id, l])) };
 }

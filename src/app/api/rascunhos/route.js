@@ -21,6 +21,7 @@ export async function GET(request) {
     classificacao: r.classificacao,
     tinyNotaId: r.tiny_nota_id,
     notaEmitida: r.nota_emitida,
+    tinyNotasSubstituidas: r.tiny_notas_substituidas ?? [],
     total: r.payload_enviado ? totalDaNota(r.payload_enviado) : null,
     criadoEm: r.criado_em,
     atualizadoEm: r.atualizado_em,

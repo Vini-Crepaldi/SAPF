@@ -10,6 +10,7 @@ export default function SiteHeader() {
         <a href="/">Início</a>
         <a href="/pedidos">Pedidos</a>
         <a href="/rascunhos">Rascunhos</a>
+        <a href="/transferencias">Transferências</a>
         <a href="/gtin">GTIN</a>
       </nav>
     </header>

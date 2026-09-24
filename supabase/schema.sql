@@ -71,3 +71,51 @@ alter table notas_processadas enable row level security;
 alter table itens_pendentes  enable row level security;
 alter table configuracoes    enable row level security;
 alter table cnpjs_franquia   enable row level security;
+
+-- ---------------------------------------------------------------------------
+-- Transferências entre lojas (tela /transferencias)
+--
+-- As notas de transferência moram em notas_processadas também, com o gid da
+-- transferência (gid://shopify/InventoryTransfer/...) em shopify_order_id e
+-- classificacao = 'transferencia'. Assim a trava contra nota duplicada, o
+-- histórico e a emissão são os mesmos dos pedidos.
+-- ---------------------------------------------------------------------------
+
+-- Número da NF: preenchido pelo Tiny depois da emissão, ou digitado à mão
+-- para transferências cuja nota foi emitida fora deste sistema.
+alter table notas_processadas add column if not exists numero_nf text;
+
+-- Dados fiscais de cada loja (local do Shopify). O Shopify não guarda CNPJ nem
+-- IE de local, e o endereço dele não tem bairro — sem esta tabela a nota de
+-- transferência não tem destinatário válido. Assim como cnpjs_franquia, a
+-- carga real NÃO fica no repositório. Cadastre pelo SQL Editor:
+--   insert into lojas_fiscais (shopify_location_id, razao_social, cnpj, ie, logradouro, numero, bairro, cidade, uf, cep)
+--   values ('gid://shopify/Location/123', 'RAZAO SOCIAL LTDA', '00000000000000', '000000000', 'Av. X', '100', 'Centro', 'Belo Horizonte', 'MG', '30000000');
+-- Os ids dos locais estão em `locais` na resposta de GET /api/transferencias.
+create table if not exists lojas_fiscais (
+  shopify_location_id text primary key,  -- gid://shopify/Location/...
+  razao_social text not null,
+  cnpj text not null,                    -- só dígitos
+  ie text,
+  logradouro text,
+  numero text,
+  complemento text,
+  bairro text,
+  cidade text,
+  uf text,
+  cep text,
+  criado_em timestamptz default now()
+);
+
+-- Regras da nota por loja de DESTINO (ver montarNotaTransferencia.js):
+--   natureza_operacao    nome da natureza no Tiny (define o CFOP — dentro do
+--                        estado x interestadual). Vazia = "Transferência de mercadoria".
+--   base_valor           'custo' (padrão) ou 'venda' — de onde sai o valor do item.
+--   desconto_percentual  % abatido do valor de cada item. 0 = sem desconto.
+alter table lojas_fiscais add column if not exists natureza_operacao text;
+alter table lojas_fiscais add column if not exists base_valor text not null default 'custo'
+  check (base_valor in ('custo', 'venda'));
+alter table lojas_fiscais add column if not exists desconto_percentual numeric(5,2) not null default 0
+  check (desconto_percentual >= 0 and desconto_percentual < 100);
+
+alter table lojas_fiscais enable row level security;

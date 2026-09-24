@@ -5,9 +5,9 @@ fiscal e cria o **rascunho** dentro do Tiny. A conferência e a emissão
 continuam manuais, no próprio Tiny — este sistema só emite quando a trava
 `PERMITIR_EMISSAO` está ligada, e nenhuma tela hoje chama isso automaticamente.
 
-Cobre apenas o primeiro dos três processos fiscais de hoje. Notas de
-transferência entre lojas e de devolução ficam para depois; a estrutura de
-pastas foi pensada para receber esses fluxos sem reescrever nada.
+Cobre dois dos três processos fiscais de hoje: atacado/franquia e
+transferência entre lojas (tela `/transferencias`, ver seção própria abaixo).
+Notas de devolução ficam para depois.
 
 A integração com o Shopify já é real (Admin GraphQL API), não simulada.
 
@@ -63,6 +63,7 @@ commitada no repositório.
 | `SHOPIFY_API_VERSION` | Versão da Admin API, ex.: `2025-07` |
 | `TINY_API_TOKEN` | Token em Configurações > Geral > Tokens no Tiny |
 | `TINY_API_BASE` | `https://api.tiny.com.br/api2` |
+| `SHOPIFY_TRANSFERENCIAS_TOKEN` | Token do app de transferências do Shopify (escopos `read_inventory_transfers`, `read_locations`, `read_inventory`, `read_products`). Domínio e versão são os mesmos `SHOPIFY_STORE_DOMAIN` e `SHOPIFY_API_VERSION` |
 | `SUPABASE_URL` | Project Settings > API > Project URL |
 | `SUPABASE_SERVICE_ROLE_KEY` | Project Settings > API > `service_role`. Nunca exponha no navegador. |
 | `PERMITIR_EMISSAO` | Valor inicial da trava, só usado se a linha `permitir_emissao` ainda não existir no Supabase. Não mude sem alinhar com o time fiscal. |
@@ -75,8 +76,9 @@ serviço não está configurado ou fora do ar.
 ### Criando as tabelas no Supabase
 
 No painel do Supabase: **SQL Editor > New query**, cole o conteúdo de
-`supabase/schema.sql` e clique em **Run**. São quatro tabelas:
-`notas_processadas`, `itens_pendentes`, `configuracoes` e `cnpjs_franquia`.
+`supabase/schema.sql` e clique em **Run**. São cinco tabelas:
+`notas_processadas`, `itens_pendentes`, `configuracoes`, `cnpjs_franquia` e
+`lojas_fiscais`.
 
 `cnpjs_franquia` não vem com dados — é cadastro sensível de cliente, então
 fica de fora do controle de versão de propósito. Cadastre direto no SQL
@@ -99,6 +101,31 @@ insert into cnpjs_franquia (cnpj, apelido) values ('00000000000000', 'Nome da fr
 
 Se algo falhar depois do deploy, abra `/api/saude` na URL publicada: a
 resposta diz qual serviço está com problema e por quê.
+
+---
+
+## Transferências entre lojas
+
+A tela `/transferencias` lista as transferências de estoque do Shopify
+(`inventoryTransfers`, lidas com o token do app de transferências) e, para
+cada uma, cria o rascunho da nota no Tiny e emite — com as mesmas travas dos
+pedidos (confirmação na tela e `permitir_emissao`). O registro fica em
+`notas_processadas`, com o gid da transferência e `classificacao =
+'transferencia'`.
+
+- **Destinatário:** o Shopify não guarda CNPJ/IE de local. Cada loja precisa
+  estar em `lojas_fiscais` (id do local no Shopify, razão social, CNPJ, IE e
+  endereço com bairro) — sem a loja de destino cadastrada, o rascunho é
+  recusado. Cadastre direto no SQL Editor, como `cnpjs_franquia`.
+- **Regras por loja de destino** (colunas de `lojas_fiscais`):
+  - `natureza_operacao`: nome da natureza no Tiny, de onde sai o CFOP (use uma
+    para dentro do estado e outra para interestadual). Vazia, cai em
+    `Transferência de mercadoria`, com aviso.
+  - `base_valor`: `custo` (padrão, `unitCost` do Shopify; sem custo, cai no
+    preço de venda e a tela avisa) ou `venda` (preço da variante).
+  - `desconto_percentual`: % abatido do valor de cada item (padrão 0).
+- **Nº da NF à mão / "Marcar todas como emitidas":** para transferências cuja
+  nota foi emitida fora do sistema. Só gravam no Supabase, não chamam o Tiny.
 
 ---
 
@@ -131,6 +158,10 @@ src/
     api/pedidos/[id]/emitir/         Emite a nota (irreversível, travado)
     api/rascunhos/                   Lista o histórico de rascunhos já criados
     api/config/permitir-emissao/     Liga/desliga a trava de emissão
+    transferencias/page.js           Controle de transferências -> features/transferencias
+    api/transferencias/              Lista transferências + situação fiscal; subrotas
+                                      [id]/preview, [id]/rascunho, [id]/emitir,
+                                      [id]/numero-nf e marcar-emitidas
 
   components/
     layouts/SiteHeader.js            Cabeçalho de navegação
@@ -148,6 +179,9 @@ src/
       components/EditarRascunho.js   Corrige um rascunho já criado no Tiny
       components/ListaRascunhos.js   Histórico de rascunhos + emissão da nota
       hooks/useRascunhos.js, hooks/useIncluirRascunho.js, hooks/useEditarRascunho.js
+    transferencias/
+      components/ControleTransferencias.js  Filtros, lista, rascunho e emissão das transferências
+      hooks/useTransferencias.js
 
   lib/
     constants.js                     Constantes de UI compartilhadas
@@ -158,13 +192,15 @@ src/
       classificacao.js               Atacado, franquia ou outro, a partir do CNPJ
       camposCliente.js                Lista dos campos do cliente exibidos nas telas de rascunho
       montarNota.js                  Pedido do Shopify -> JSON do nota.fiscal.incluir
+      montarNotaTransferencia.js     Transferência do Shopify -> JSON do nota.fiscal.incluir
     integrations/
       shopify.js                     Admin GraphQL API — fonte real dos pedidos
+      shopifyTransferencias.js       Transferências e locais (token do app de transferências)
       tiny.js                        API 2.0 do Tiny, com as travas de segurança
 
 supabase/
-  schema.sql                         As quatro tabelas: notas, pendências,
-                                      configurações e CNPJs de franquia
+  schema.sql                         As cinco tabelas: notas, pendências,
+                                      configurações, CNPJs de franquia e lojas
 ```
 
 Novos fluxos fiscais (transferência entre lojas, devolução) entram como uma
