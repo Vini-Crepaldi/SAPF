@@ -1,6 +1,7 @@
 'use client';
 
 import { useCallback, useEffect, useState } from 'react';
+import { ITENS_POR_PAGINA } from '@/lib/constants';
 
 export const FILTROS_VAZIOS = {
   origem: '',
@@ -52,6 +53,7 @@ export function useTransferencias() {
   // { [id]: string }
   const [numerosDigitados, setNumerosDigitados] = useState({});
   const [marcandoTodas, setMarcandoTodas] = useState(false);
+  const [pagina, setPagina] = useState(1);
 
   const carregar = useCallback(async (f) => {
     setCarregando(true);
@@ -59,6 +61,8 @@ export function useTransferencias() {
     try {
       const corpo = await lerJson(await fetch(`/api/transferencias?${paraQuery(f)}`), 'Falha ao carregar');
       setTransferencias(corpo.transferencias);
+      // Filtro novo, lista nova: a página antiga pode nem existir mais.
+      setPagina(1);
       setLocais(corpo.locais);
       setTruncado(corpo.truncado);
     } catch (e) {
@@ -183,7 +187,7 @@ export function useTransferencias() {
     const pendentes = (transferencias ?? []).filter((t) => !t.notaEmitida);
     if (pendentes.length === 0) return;
     const confirmou = window.confirm(
-      `Marcar ${pendentes.length} transferência(s) visíveis como emitidas? Isto NÃO emite nada no Tiny — ` +
+      `Marcar ${pendentes.length} transferência(s) da lista filtrada (todas as páginas) como emitidas? Isto NÃO emite nada no Tiny — ` +
         'só tira da lista de pendentes as que já tiveram nota emitida fora do sistema. ' +
         'As que têm rascunho aberto no Tiny ficam de fora.'
     );
@@ -218,7 +222,20 @@ export function useTransferencias() {
     }
   }
 
+  const totalPaginas = Math.max(1, Math.ceil((transferencias?.length ?? 0) / ITENS_POR_PAGINA));
+  const inicio = (pagina - 1) * ITENS_POR_PAGINA;
+  const transferenciasDaPagina = (transferencias ?? []).slice(inicio, inicio + ITENS_POR_PAGINA);
+
+  function mudarPagina(nova) {
+    setPagina(nova);
+    window.scrollTo({ top: 0, behavior: 'smooth' });
+  }
+
   return {
+    pagina,
+    totalPaginas,
+    mudarPagina,
+    transferenciasDaPagina,
     filtros,
     atualizarFiltro,
     aplicarFiltros,

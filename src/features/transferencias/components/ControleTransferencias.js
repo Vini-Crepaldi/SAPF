@@ -5,6 +5,7 @@
 
 import { Fragment } from 'react';
 import IconePdf from '@/components/ui/IconePdf';
+import Paginacao from '@/components/ui/Paginacao';
 import { formatarDataCurta, formatarMoeda } from '@/lib/format';
 import { useTransferencias } from '../hooks/useTransferencias';
 
@@ -119,6 +120,10 @@ function Produtos({ estado }) {
 
 export default function ControleTransferencias() {
   const {
+    pagina,
+    totalPaginas,
+    mudarPagina,
+    transferenciasDaPagina,
     filtros,
     atualizarFiltro,
     aplicarFiltros,
@@ -276,7 +281,10 @@ export default function ControleTransferencias() {
         <div className="vazio">Nenhuma transferência corresponde aos filtros.</div>
       ) : (
         <>
-          <p className="fraco">{transferencias.length} transferência(s).</p>
+          <p className="fraco">
+            {transferencias.length} transferência(s)
+            {totalPaginas > 1 && ` — página ${pagina} de ${totalPaginas}`}.
+          </p>
           <table>
             <thead>
               <tr>
@@ -290,7 +298,7 @@ export default function ControleTransferencias() {
               </tr>
             </thead>
             <tbody>
-              {transferencias.map((t) => {
+              {transferenciasDaPagina.map((t) => {
                 const estadoProdutos = produtos[t.id];
                 const acao = acoes[t.id];
                 const enviando = acao?.fase === 'enviando';
@@ -441,6 +449,7 @@ export default function ControleTransferencias() {
               })}
             </tbody>
           </table>
+          <Paginacao pagina={pagina} totalPaginas={totalPaginas} aoMudarPagina={mudarPagina} />
         </>
       )}
     </>
