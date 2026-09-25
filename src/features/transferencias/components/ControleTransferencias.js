@@ -38,31 +38,6 @@ function StatusFiscal({ t }) {
   return <span className="marca marca-erro">NF pendente</span>;
 }
 
-/** Contagem da lista filtrada (todas as páginas), para bater o olho no que falta. */
-function Resumo({ transferencias }) {
-  const emitidas = transferencias.filter((t) => t.notaEmitida).length;
-  const comRascunho = transferencias.filter((t) => !t.notaEmitida && t.situacaoFiscal === 'rascunho_criado').length;
-  const pendentes = transferencias.filter(
-    (t) => !t.notaEmitida && t.situacaoFiscal !== 'rascunho_criado' && t.status !== 'CANCELED'
-  ).length;
-  const itens = [
-    ['Na lista', transferencias.length, ''],
-    ['NF pendente', pendentes, 'resumo-alerta'],
-    ['Com rascunho', comRascunho, 'resumo-azul'],
-    ['Emitidas', emitidas, 'resumo-ok'],
-  ];
-  return (
-    <div className="resumo">
-      {itens.map(([rotulo, valor, classe]) => (
-        <div key={rotulo} className={`resumo-item ${classe}`}>
-          <span className="resumo-valor">{valor}</span>
-          <span className="resumo-rotulo">{rotulo}</span>
-        </div>
-      ))}
-    </div>
-  );
-}
-
 function SeletorLoja({ id, rotulo, valor, locais, aoMudar, vazio }) {
   return (
     <div>
@@ -174,7 +149,6 @@ export default function ControleTransferencias() {
     filtrosAlterados,
     transferencias,
     locais,
-    truncado,
     carregando,
     erro,
     aviso,
@@ -319,20 +293,12 @@ export default function ControleTransferencias() {
         </div>
       )}
 
-      {truncado && (
-        <div className="aviso">
-          Há mais transferências do que a lista mostra (limite de 1000). Use os filtros de data ou de loja.
-        </div>
-      )}
-
       {!transferencias ? (
         !erro && <p className="fraco">Carregando transferências…</p>
       ) : transferencias.length === 0 ? (
         <div className="vazio">Nenhuma transferência corresponde aos filtros.</div>
       ) : (
         <>
-          <Resumo transferencias={transferencias} />
-
           <div className="barra-lote">
             <span className="fraco">
               {selecionadas.size > 0 ? (
