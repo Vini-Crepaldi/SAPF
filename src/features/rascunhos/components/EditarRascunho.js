@@ -1,4 +1,6 @@
-// /pedidos/[id]/rascunho/editar — corrige um rascunho já criado no Tiny.
+// /pedidos/[id]/rascunho/editar e /transferencias/[id]/rascunho/editar —
+// corrige um rascunho já criado no Tiny. `tipo` escolhe a API e para onde
+// voltar; o resto da tela é igual para os dois.
 //
 // A tela deixa explícito, antes e depois de salvar, que o rascunho antigo
 // não some sozinho: ver useEditarRascunho para o porquê.
@@ -15,8 +17,25 @@ import { useEditarRascunho } from '../hooks/useEditarRascunho';
 // a remoção de verdade só acontece depois, senão a linha some sem animar.
 const DURACAO_ANIMACAO_MS = 250;
 
-export default function EditarRascunho({ params }) {
+const TIPOS = {
+  pedido: {
+    api: (id) => `/api/pedidos/${id}/rascunho`,
+    rotulo: 'pedido',
+    tituloCliente: 'Dados do cliente na nota',
+    voltar: ['/rascunhos', 'Voltar para a lista de rascunhos'],
+  },
+  transferencia: {
+    api: (id) => `/api/transferencias/${id}/rascunho`,
+    rotulo: 'transferência',
+    tituloCliente: 'Destinatário na nota (loja de destino)',
+    voltar: ['/transferencias', 'Voltar para as transferências'],
+  },
+};
+
+export default function EditarRascunho({ params, tipo = 'pedido' }) {
   const { id } = params;
+  const config = TIPOS[tipo];
+  const [hrefVoltar, rotuloVoltar] = config.voltar;
 
   const {
     dados,
@@ -42,7 +61,7 @@ export default function EditarRascunho({ params }) {
     restaurarItemRemovido,
     restaurarItens,
     confirmarRecriacao,
-  } = useEditarRascunho(id);
+  } = useEditarRascunho(config.api(id));
 
   const [saindoIndices, setSaindoIndices] = useState(() => new Set());
 
@@ -64,7 +83,7 @@ export default function EditarRascunho({ params }) {
         <strong>Não foi possível abrir este rascunho.</strong>
         <p>{erroCarregamento}</p>
         <p>
-          <a href="/rascunhos">Voltar para a lista de rascunhos</a>
+          <a href={hrefVoltar}>{rotuloVoltar}</a>
         </p>
       </div>
     );
@@ -81,7 +100,7 @@ export default function EditarRascunho({ params }) {
           aqui. Qualquer correção agora precisa ser feita à mão, dentro do Tiny.
         </p>
         <p>
-          <a href="/rascunhos">Voltar para a lista de rascunhos</a>
+          <a href={hrefVoltar}>{rotuloVoltar}</a>
         </p>
       </div>
     );
@@ -90,7 +109,7 @@ export default function EditarRascunho({ params }) {
   return (
     <>
       <h2>
-        Editar rascunho — pedido {dados.orderName}{' '}
+        Editar rascunho — {config.rotulo} {dados.orderName}{' '}
         <span className={`marca marca-${dados.classificacao}`}>{dados.classificacao}</span>
       </h2>
 
@@ -119,7 +138,7 @@ export default function EditarRascunho({ params }) {
           <strong>Novo rascunho criado no Tiny — nota {resultado.tinyNotaId ?? 'sem id retornado'}.</strong>
           <p>{resultado.mensagem}</p>
           <p>
-            <a href="/rascunhos">Voltar para a lista de rascunhos</a>
+            <a href={hrefVoltar}>{rotuloVoltar}</a>
           </p>
         </div>
       )}
@@ -131,7 +150,7 @@ export default function EditarRascunho({ params }) {
         </div>
       )}
 
-      <h3>Dados do cliente na nota</h3>
+      <h3>{config.tituloCliente}</h3>
       <div className="cartao campos">
         {CAMPOS_CLIENTE.map(([campo, rotulo]) => (
           <div key={campo}>
@@ -312,7 +331,7 @@ export default function EditarRascunho({ params }) {
       )}
 
       <p style={{ marginTop: '2rem' }}>
-        <a href="/rascunhos">Voltar para a lista de rascunhos</a>
+        <a href={hrefVoltar}>{rotuloVoltar}</a>
       </p>
     </>
   );

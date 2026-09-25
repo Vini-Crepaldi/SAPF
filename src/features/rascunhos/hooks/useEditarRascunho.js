@@ -15,8 +15,11 @@ import { recalcularParcelas } from '@/lib/fiscal/pagamento';
  * Diferença para useIncluirRascunho: os dados de partida vêm do que foi
  * REALMENTE enviado ao Tiny da última vez (payload_enviado no Supabase), não
  * recalculados a partir do pedido no Shopify.
+ *
+ * `urlApi` é o endpoint GET/PUT do rascunho — o de pedido ou o de
+ * transferência (/api/transferencias/[id]/rascunho); os dois respondem igual.
  */
-export function useEditarRascunho(id) {
+export function useEditarRascunho(urlApi) {
   const [dados, setDados] = useState(null);
   const [erroCarregamento, setErroCarregamento] = useState(null);
   const [pagina, setPagina] = useState(1);
@@ -32,7 +35,7 @@ export function useEditarRascunho(id) {
   const [resultado, setResultado] = useState(null);
 
   useEffect(() => {
-    fetch(`/api/pedidos/${id}/rascunho`)
+    fetch(urlApi)
       .then(async (r) => {
         const corpo = await r.json();
         if (!r.ok) throw new Error(corpo.erro ?? 'Falha ao carregar o rascunho');
@@ -46,7 +49,7 @@ export function useEditarRascunho(id) {
         setItensOriginais(itens);
       })
       .catch((e) => setErroCarregamento(e.message));
-  }, [id]);
+  }, [urlApi]);
 
   function atualizarCliente(campo, valor) {
     setClienteEditado((atual) => ({ ...atual, [campo]: valor }));
@@ -100,7 +103,7 @@ export function useEditarRascunho(id) {
         ),
       };
 
-      const resposta = await fetch(`/api/pedidos/${id}/rascunho`, {
+      const resposta = await fetch(urlApi, {
         method: 'PUT',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ payload, confirmacaoTeste: true }),

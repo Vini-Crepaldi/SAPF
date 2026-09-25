@@ -199,7 +199,7 @@ export async function statusPorPedido(orderIds) {
 
   const { data, error } = await db
     .from('notas_processadas')
-    .select('shopify_order_id, status, tiny_nota_id, nota_emitida, numero_nf')
+    .select('shopify_order_id, status, tiny_nota_id, nota_emitida, numero_nf, tiny_notas_substituidas')
     .in('shopify_order_id', orderIds);
 
   if (error || !data) return {};

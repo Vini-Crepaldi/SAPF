@@ -184,6 +184,86 @@ button.botao-erro { background: var(--alerta); border-color: var(--alerta); colo
 
 .paginacao { display: flex; gap: 0.75rem; align-items: center; margin-top: 1rem; font-size: 0.9rem; }
 
+/* Botão compacto — usado nas ações por linha, onde há vários lado a lado. */
+button.pequeno { font-size: 0.8rem; padding: 0.3rem 0.7rem; border-radius: 8px; }
+/* Botão com cara de link, para ações textuais pequenas (ex.: "limpar seleção"). */
+button.link { background: none; border: none; padding: 0; color: var(--azul); font-weight: 500; font-size: inherit; }
+button.link:disabled { background: none; color: var(--tinta-fraca); }
+button.link:hover:not(:disabled) { text-decoration: underline; }
+/* Link com cara de botão secundário pequeno, para navegar sem sair do visual das ações. */
+a.botao-link {
+  display: inline-block;
+  font-size: 0.8rem;
+  padding: 0.3rem 0.7rem;
+  border: 1px solid var(--linha);
+  border-radius: 8px;
+  color: var(--tinta);
+  white-space: nowrap;
+}
+a.botao-link:hover { background: var(--realce); border-color: var(--tinta-fraca); text-decoration: none; }
+.botao-pdf-destaque { border-color: var(--ok); color: var(--ok); background: var(--ok-fundo); }
+.grupo-botoes { display: flex; gap: 0.6rem; flex-wrap: wrap; align-items: center; }
+.forte { font-weight: 600; }
+.pilha { display: flex; flex-direction: column; gap: 0.35rem; align-items: flex-start; }
+
+/* ---- /transferencias ---- */
+
+.cabecalho-pagina { display: flex; flex-wrap: wrap; gap: 0.75rem 1rem; align-items: center; justify-content: space-between; margin: 2rem 0 1rem; }
+.cabecalho-pagina h2 { margin: 0; }
+.cabecalho-pagina a.marca { font-size: 0.82rem; padding: 0.3rem 0.8rem; }
+.cabecalho-pagina a.marca:hover { text-decoration: none; filter: brightness(1.15); }
+
+.filtros-cartao summary { cursor: pointer; display: flex; gap: 0.6rem; align-items: center; list-style: none; }
+.filtros-cartao summary::-webkit-details-marker { display: none; }
+.filtros-cartao summary::before { content: '▸'; color: var(--tinta-fraca); transition: transform 0.15s ease; }
+.filtros-cartao[open] summary::before { transform: rotate(90deg); }
+.filtros-rodape { display: flex; flex-wrap: wrap; gap: 0.5rem 1rem; align-items: center; justify-content: space-between; margin-top: 0.75rem; }
+.filtros-rodape .filtros { margin: 0; }
+
+.aviso-fechavel { display: flex; gap: 1rem; align-items: flex-start; justify-content: space-between; }
+.aviso-fechavel button { flex-shrink: 0; }
+
+.resumo { display: grid; grid-template-columns: repeat(auto-fit, minmax(9rem, 1fr)); gap: 0.75rem; margin: 1rem 0; }
+.resumo-item { border: 1px solid var(--linha); border-radius: var(--raio); background: var(--papel-alt); padding: 0.6rem 0.9rem; display: flex; flex-direction: column; }
+.resumo-valor { font-size: 1.4rem; font-weight: 600; font-variant-numeric: tabular-nums; line-height: 1.2; }
+.resumo-rotulo { font-size: 0.8rem; color: var(--tinta-fraca); }
+.resumo-alerta .resumo-valor { color: var(--alerta); }
+.resumo-azul .resumo-valor { color: var(--azul); }
+.resumo-ok .resumo-valor { color: var(--ok); }
+
+/* Fica grudada no topo ao rolar a tabela: a emissão em lote está sempre à mão. */
+.barra-lote {
+  position: sticky;
+  top: 0;
+  z-index: 2;
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.6rem 1rem;
+  align-items: center;
+  justify-content: space-between;
+  padding: 0.6rem 0.9rem;
+  margin-bottom: 0.5rem;
+  border: 1px solid var(--linha);
+  border-radius: var(--raio);
+  background: var(--papel-alt);
+}
+.barra-lote-contagem { color: var(--tinta); }
+
+.tabela-rolavel { overflow-x: auto; border: 1px solid var(--linha); border-radius: var(--raio); }
+.tabela-rolavel table { min-width: 56rem; }
+.tabela-rolavel tbody tr:last-child td { border-bottom: none; }
+.tabela-transferencias td { vertical-align: middle; }
+.tabela-transferencias .col-check { width: 2.25rem; }
+.tabela-transferencias input[type="checkbox"] { width: auto; }
+.tabela-transferencias tr.linha-selecionada { background: var(--azul-fundo); }
+.tabela-transferencias tr.linha-expandida td { border-bottom-color: transparent; }
+.rota-destino { color: var(--tinta-fraca); font-size: 0.85rem; }
+.acoes-linha { display: flex; flex-wrap: wrap; gap: 0.4rem; align-items: center; }
+tbody tr.linha-detalhe, tbody tr.linha-detalhe:hover { background: var(--papel); }
+tr.linha-detalhe > td { padding: 0.25rem 0.9rem 1rem 2.85rem; }
+tr.linha-detalhe .confirmacao, tr.linha-detalhe .aviso { margin: 0.25rem 0 0; }
+tr.linha-detalhe table { border: 1px solid var(--linha); border-radius: var(--raio); }
+
 .vazio { border: 1px dashed var(--linha); border-radius: var(--raio); padding: 2rem; text-align: center; color: var(--tinta-fraca); }
 
 @media (max-width: 40rem) {
@@ -191,6 +271,7 @@ button.botao-erro { background: var(--alerta); border-color: var(--alerta); colo
   .topo { margin: -1.25rem -0.85rem 1.5rem; }
   table { font-size: 0.82rem; }
   th, td { padding: 0.4rem; }
+  tr.linha-detalhe > td { padding: 0.25rem 0.4rem 0.75rem; }
 }
 
 @media (prefers-reduced-motion: reduce) {

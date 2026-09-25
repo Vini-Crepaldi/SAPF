@@ -1,22 +1,139 @@
-// POST /api/transferencias/[id]/rascunho — cria o rascunho da nota de
-// transferência no Tiny.
+// /api/transferencias/[id]/rascunho — rascunho da nota de transferência no Tiny.
 //
-// ESTE ENDPOINT ESCREVE EM PRODUÇÃO. Mesmas travas do rascunho de pedido:
-// exige `confirmacaoTeste: true` e nunca cria dois rascunhos para a mesma
-// transferência. Diferente do pedido, o payload NÃO vem do navegador: a tela
-// de transferências não edita a nota, então ela é remontada aqui a partir do
-// Shopify e do cadastro de lojas — o que vai para o Tiny é o que o preview mostrou.
+// ESTES ENDPOINTS ESCREVEM EM PRODUÇÃO. Mesmas travas do rascunho de pedido:
+// exigem `confirmacaoTeste: true` e nunca criam dois rascunhos para a mesma
+// transferência.
+//
+//   - POST cria o rascunho pela primeira vez. O payload NÃO vem do navegador:
+//     é remontado aqui a partir do Shopify e do cadastro de lojas — o que vai
+//     para o Tiny é o que o preview mostrou.
+//   - GET  devolve o rascunho já criado (o payload realmente enviado ao Tiny),
+//     para a tela de edição carregar.
+//   - PUT  "edita" o rascunho: como no pedido, a API 2.0 do Tiny não altera
+//     nem exclui nota, então cria um NOVO rascunho com o payload corrigido
+//     vindo da tela; o antigo precisa ser cancelado/excluído à mão no Tiny e
+//     fica registrado em tiny_notas_substituidas.
 
 import { incluirNotaRascunho, obterNota } from '@/lib/integrations/tiny';
 import { obterTransferenciaCompleta, paraGidTransferencia } from '@/lib/integrations/shopifyTransferencias';
 import { montarNotaTransferencia } from '@/lib/fiscal/montarNotaTransferencia';
-import { lojasFiscaisPorLocal, registrarErro, registrarRascunhoCriado, statusPorPedido } from '@/lib/db';
+import {
+  lojasFiscaisPorLocal,
+  obterRascunhoCriado,
+  registrarErro,
+  registrarRascunhoCriado,
+  statusPorPedido,
+} from '@/lib/db';
+import { totalDaNota } from '@/lib/fiscal/montarNota';
 import { erroJson } from '@/lib/utils';
 
 export const dynamic = 'force-dynamic';
 export const runtime = 'nodejs';
 
 const CLASSIFICACAO = 'transferencia';
+
+/** Rascunho criado desta transferência — o mesmo id numérico poderia, em tese, ser de um pedido. */
+async function rascunhoDaTransferencia(gid) {
+  const atual = await obterRascunhoCriado(gid);
+  if (atual.ok && atual.rascunho && atual.rascunho.classificacao !== CLASSIFICACAO) {
+    return { ok: true, rascunho: null };
+  }
+  return atual;
+}
+
+export async function GET(request, { params }) {
+  const { id } = await params;
+  const gid = paraGidTransferencia(id);
+
+  const { ok, erro, rascunho } = await rascunhoDaTransferencia(gid);
+  if (!ok) return erroJson(`Não foi possível carregar o rascunho: ${erro}`, 502);
+  if (!rascunho) return erroJson('Esta transferência ainda não tem rascunho criado no Tiny.', 404);
+
+  return Response.json({
+    orderName: rascunho.shopify_order_name,
+    classificacao: rascunho.classificacao,
+    payload: rascunho.payload_enviado,
+    totalNota: rascunho.payload_enviado ? totalDaNota(rascunho.payload_enviado) : 0,
+    tinyNotaId: rascunho.tiny_nota_id,
+    notaEmitida: rascunho.nota_emitida,
+    tinyNotasSubstituidas: rascunho.tiny_notas_substituidas ?? [],
+  });
+}
+
+export async function PUT(request, { params }) {
+  const { id } = await params;
+  const gid = paraGidTransferencia(id);
+
+  let corpo;
+  try {
+    corpo = await request.json();
+  } catch {
+    return erroJson('Corpo da requisição inválido: era esperado um JSON.', 400);
+  }
+
+  const { payload, confirmacaoTeste } = corpo ?? {};
+  if (confirmacaoTeste !== true) {
+    return erroJson(
+      'Confirmação ausente: isto cria um NOVO rascunho no Tiny com os dados corrigidos — o antigo ' +
+        'precisa ser cancelado/excluído manualmente dentro do Tiny.',
+      400
+    );
+  }
+  if (!payload?.nota_fiscal?.itens?.length) {
+    return erroJson('Payload sem itens. Volte e confira os dados antes de salvar.', 400);
+  }
+
+  const atual = await rascunhoDaTransferencia(gid);
+  if (!atual.ok) return erroJson(`Não foi possível confirmar o rascunho atual: ${atual.erro}`, 502);
+  if (!atual.rascunho) {
+    return erroJson('Esta transferência ainda não tem rascunho criado no Tiny — crie pela tela de transferências.', 404);
+  }
+  if (atual.rascunho.nota_emitida) {
+    return erroJson('Esta nota já foi emitida no Tiny. Uma nota emitida não pode ser recriada por aqui.', 409);
+  }
+
+  const tinyNotaIdAnterior = atual.rascunho.tiny_nota_id;
+  const orderName = atual.rascunho.shopify_order_name;
+
+  try {
+    const { idNota, retorno } = await incluirNotaRascunho(payload);
+    const confirmacao = idNota ? await obterNota(idNota).catch((erro) => ({ aviso: erro.message })) : null;
+
+    // Acumula: um rascunho corrigido duas vezes deixa dois antigos para remover no Tiny.
+    const notasSubstituidas = [...(atual.rascunho.tiny_notas_substituidas ?? [])];
+    if (tinyNotaIdAnterior) notasSubstituidas.push(tinyNotaIdAnterior);
+
+    const registro = await registrarRascunhoCriado({
+      orderId: gid,
+      orderName,
+      classificacao: CLASSIFICACAO,
+      payload,
+      tinyNotaId: idNota,
+      respostaTiny: retorno,
+      notasSubstituidas,
+    });
+    if (!registro.ok) {
+      console.error(
+        `[transferencia] Novo rascunho ${idNota} (corrigindo ${tinyNotaIdAnterior}) criado no Tiny, mas falhou ao registrar no Supabase:`,
+        registro.erro
+      );
+    }
+
+    return Response.json({
+      ok: true,
+      tinyNotaId: idNota,
+      tinyNotaIdAnterior,
+      confirmacao,
+      mensagem:
+        `Novo rascunho ${idNota ?? ''} criado no Tiny com os dados corrigidos. ` +
+        `Cancele ou exclua o rascunho ${tinyNotaIdAnterior} dentro do Tiny — a API não faz isso ` +
+        'automaticamente, e os dois ficam duplicados até você remover o antigo à mão.',
+    });
+  } catch (erro) {
+    console.error(`[transferencia] Tiny recusou a recriação da transferência ${gid} (substituindo ${tinyNotaIdAnterior}):`, erro);
+    return erroJson(`O Tiny recusou a inclusão da nota corrigida: ${erro.message}`, 502);
+  }
+}
 
 export async function POST(request, { params }) {
   const { id } = await params;

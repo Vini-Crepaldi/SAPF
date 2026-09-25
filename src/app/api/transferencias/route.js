@@ -61,6 +61,7 @@ export async function GET(request) {
           tinyNotaId: situacao?.tiny_nota_id ?? null,
           notaEmitida: situacao?.nota_emitida ?? false,
           numeroNf: situacao?.numero_nf ?? null,
+          tinyNotasSubstituidas: situacao?.tiny_notas_substituidas ?? [],
         };
       })
       .filter((t) => !excluir || (t.origemId !== excluir && t.destinoId !== excluir))
