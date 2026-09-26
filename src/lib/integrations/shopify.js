@@ -85,6 +85,7 @@ query PedidoAtacado($id: ID!, $cursor: String) {
       pageInfo { hasNextPage endCursor }
       nodes {
         sku title quantity
+        product { ncm: metafield(namespace: "custom", key: "ncm") { value } }
         originalUnitPriceSet   { shopMoney { amount } }
         discountedUnitPriceSet { shopMoney { amount } }
       }
